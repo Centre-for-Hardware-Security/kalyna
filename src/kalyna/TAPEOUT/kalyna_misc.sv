@@ -1,0 +1,20556 @@
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Description: This file includes the main building blocks of the KALYNA block cipher                                                                                                               //
+// Serial   - kalyna_enc_block_serial_oboc                    - Encryption            - Serial with one operation in one clock cycle                                                                 //
+// Serial   - kalyna_encdec_block_serial_oboc                 - Encryption/Decryption - Serial with one operation in one clock cycle                                                                 //
+// Serial   - kalyna_encdec_block_serial64b_oboc              - Encryption/Decryption - Serial with one 64-bit operation in one clock cycle                                                          //
+// Serial   - kalyna_encdec_block_serial64b_oboc_fomhid       - Encryption/Decryption - Serial with one 64-bit operation in one clock cycle with first-order masking and hiding                      //
+// Serial   - kalyna_encdec_block_serial64b_oboc_fomhidtemdup - Encryption/Decryption - Serial with one 64-bit operation in one clock cycle with first-order masking hiding and temporal duplication //
+// The BHA parameter is used to realize the 64-bit adder using a generic adder                                                                                                                       //
+// The KSA parameter is used to realize the 64-bit adder using the Kogge-Stone adder                                                                                                                 //
+// The NOOPT parameter is used to choose the non-optimized linear transformation and S-boxes                                                                                                         // 
+// The OPT parameter is used to choose the optimized linear transformation for the number of XOR gates and the optimized S-boxes                                                                     // 
+// The LFSR parameter is used to realize the pseudo-random number generator using the linear feedback shift registers                                                                                //
+// The XORSHIFT parameter is used to realize the pseudo-random number generator using the xorshift technique of George Marsaglia                                                                     //
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+`include "kalyna_ksa.v"
+`include "kalyna_ksa_fom.v"
+`include "kalyna_cmvm_gf_opt.v"
+`include "kalyna_sbox_0_alt6_fom.v"
+`include "kalyna_sbox_1_alt6_fom.v"
+`include "kalyna_sbox_2_alt6_fom.v"
+`include "kalyna_sbox_3_alt6_fom.v"
+`include "kalyna_cmvm_gf_opt_fom.v"
+`include "kalyna_inv_cmvm_gf_opt.v"
+`include "kalyna_inv_cmvm_gf_opt_fom.v"
+`include "kalyna_inv_sbox_0_alt6_fom.v"
+`include "kalyna_inv_sbox_1_alt6_fom.v"
+`include "kalyna_inv_sbox_2_alt6_fom.v"
+`include "kalyna_inv_sbox_3_alt6_fom.v"
+
+`define KSA
+`define OPT
+`define XORSHIFT
+
+//CMVM GF - 952 XOR GATES
+module kalyna_cmvm_gf (mds_in0, mds_in1, mds_in2, mds_in3, mds_in4, mds_in5, mds_in6, mds_in7, mds_out0, mds_out1, mds_out2, mds_out3, mds_out4, mds_out5, mds_out6, mds_out7); 
+
+input [7:0] mds_in0, mds_in1, mds_in2, mds_in3, mds_in4, mds_in5, mds_in6, mds_in7; 
+output [7:0] mds_out0, mds_out1, mds_out2, mds_out3, mds_out4, mds_out5, mds_out6, mds_out7; 
+
+assign mds_out0[0] = mds_in0[0] ^ mds_in1[0] ^ mds_in2[0] ^ mds_in3[0] ^ mds_in6[0] ^ mds_in2[6] ^ mds_in4[5] ^ mds_in5[7] ^ mds_in5[6] ^ mds_in6[7] ^ mds_in6[6] ^ mds_in7[6]; 
+assign mds_out0[1] = mds_in0[1] ^ mds_in1[1] ^ mds_in2[1] ^ mds_in3[1] ^ mds_in5[0] ^ mds_in6[1] ^ mds_in6[0] ^ mds_in2[7] ^ mds_in4[6] ^ mds_in5[7] ^ mds_in6[7] ^ mds_in7[7]; 
+assign mds_out0[2] = mds_in0[2] ^ mds_in1[2] ^ mds_in2[2] ^ mds_in2[0] ^ mds_in3[2] ^ mds_in5[1] ^ mds_in5[0] ^ mds_in6[2] ^ mds_in6[1] ^ mds_in6[0] ^ mds_in7[0] ^ mds_in4[7] ^ mds_in2[6] ^ mds_in4[5] ^ mds_in5[7] ^ mds_in5[6] ^ mds_in6[7] ^ mds_in6[6] ^ mds_in7[6]; 
+assign mds_out0[3] = mds_in0[3] ^ mds_in1[3] ^ mds_in2[3] ^ mds_in2[1] ^ mds_in3[3] ^ mds_in4[0] ^ mds_in5[2] ^ mds_in5[1] ^ mds_in6[3] ^ mds_in6[2] ^ mds_in6[1] ^ mds_in7[1] ^ mds_in2[7] ^ mds_in4[6] ^ mds_in7[7] ^ mds_in2[6] ^ mds_in4[5] ^ mds_in5[6] ^ mds_in6[6] ^ mds_in7[6]; 
+assign mds_out0[4] = mds_in0[4] ^ mds_in1[4] ^ mds_in2[4] ^ mds_in2[2] ^ mds_in3[4] ^ mds_in4[1] ^ mds_in5[3] ^ mds_in5[2] ^ mds_in6[4] ^ mds_in6[3] ^ mds_in6[2] ^ mds_in7[2] ^ mds_in4[7] ^ mds_in2[7] ^ mds_in4[6] ^ mds_in7[7] ^ mds_in2[6] ^ mds_in4[5] ^ mds_in5[6] ^ mds_in6[6] ^ mds_in7[6]; 
+assign mds_out0[5] = mds_in0[5] ^ mds_in1[5] ^ mds_in2[5] ^ mds_in2[3] ^ mds_in3[5] ^ mds_in4[2] ^ mds_in5[4] ^ mds_in5[3] ^ mds_in6[5] ^ mds_in6[4] ^ mds_in6[3] ^ mds_in7[3] ^ mds_in4[7] ^ mds_in2[7] ^ mds_in4[6] ^ mds_in5[7] ^ mds_in6[7] ^ mds_in7[7]; 
+assign mds_out0[6] = mds_in0[6] ^ mds_in1[6] ^ mds_in2[6] ^ mds_in2[4] ^ mds_in3[6] ^ mds_in4[3] ^ mds_in5[5] ^ mds_in5[4] ^ mds_in6[6] ^ mds_in6[5] ^ mds_in6[4] ^ mds_in7[4] ^ mds_in4[7]; 
+assign mds_out0[7] = mds_in0[7] ^ mds_in1[7] ^ mds_in2[7] ^ mds_in2[5] ^ mds_in3[7] ^ mds_in4[4] ^ mds_in5[6] ^ mds_in5[5] ^ mds_in6[7] ^ mds_in6[6] ^ mds_in6[5] ^ mds_in7[5]; 
+
+assign mds_out1[0] = mds_in1[0] ^ mds_in2[0] ^ mds_in3[0] ^ mds_in4[0] ^ mds_in7[0] ^ mds_in0[6] ^ mds_in3[6] ^ mds_in5[5] ^ mds_in6[7] ^ mds_in6[6] ^ mds_in7[7] ^ mds_in7[6]; 
+assign mds_out1[1] = mds_in1[1] ^ mds_in2[1] ^ mds_in3[1] ^ mds_in4[1] ^ mds_in6[0] ^ mds_in7[1] ^ mds_in7[0] ^ mds_in0[7] ^ mds_in3[7] ^ mds_in5[6] ^ mds_in6[7] ^ mds_in7[7]; 
+assign mds_out1[2] = mds_in0[0] ^ mds_in1[2] ^ mds_in2[2] ^ mds_in3[2] ^ mds_in3[0] ^ mds_in4[2] ^ mds_in6[1] ^ mds_in6[0] ^ mds_in7[2] ^ mds_in7[1] ^ mds_in7[0] ^ mds_in5[7] ^ mds_in0[6] ^ mds_in3[6] ^ mds_in5[5] ^ mds_in6[7] ^ mds_in6[6] ^ mds_in7[7] ^ mds_in7[6]; 
+assign mds_out1[3] = mds_in0[1] ^ mds_in1[3] ^ mds_in2[3] ^ mds_in3[3] ^ mds_in3[1] ^ mds_in4[3] ^ mds_in5[0] ^ mds_in6[2] ^ mds_in6[1] ^ mds_in7[3] ^ mds_in7[2] ^ mds_in7[1] ^ mds_in0[7] ^ mds_in3[7] ^ mds_in5[6] ^ mds_in0[6] ^ mds_in3[6] ^ mds_in5[5] ^ mds_in6[6] ^ mds_in7[6]; 
+assign mds_out1[4] = mds_in0[2] ^ mds_in1[4] ^ mds_in2[4] ^ mds_in3[4] ^ mds_in3[2] ^ mds_in4[4] ^ mds_in5[1] ^ mds_in6[3] ^ mds_in6[2] ^ mds_in7[4] ^ mds_in7[3] ^ mds_in7[2] ^ mds_in5[7] ^ mds_in0[7] ^ mds_in3[7] ^ mds_in5[6] ^ mds_in0[6] ^ mds_in3[6] ^ mds_in5[5] ^ mds_in6[6] ^ mds_in7[6]; 
+assign mds_out1[5] = mds_in0[3] ^ mds_in1[5] ^ mds_in2[5] ^ mds_in3[5] ^ mds_in3[3] ^ mds_in4[5] ^ mds_in5[2] ^ mds_in6[4] ^ mds_in6[3] ^ mds_in7[5] ^ mds_in7[4] ^ mds_in7[3] ^ mds_in5[7] ^ mds_in0[7] ^ mds_in3[7] ^ mds_in5[6] ^ mds_in6[7] ^ mds_in7[7]; 
+assign mds_out1[6] = mds_in0[4] ^ mds_in1[6] ^ mds_in2[6] ^ mds_in3[6] ^ mds_in3[4] ^ mds_in4[6] ^ mds_in5[3] ^ mds_in6[5] ^ mds_in6[4] ^ mds_in7[6] ^ mds_in7[5] ^ mds_in7[4] ^ mds_in5[7]; 
+assign mds_out1[7] = mds_in0[5] ^ mds_in1[7] ^ mds_in2[7] ^ mds_in3[7] ^ mds_in3[5] ^ mds_in4[7] ^ mds_in5[4] ^ mds_in6[6] ^ mds_in6[5] ^ mds_in7[7] ^ mds_in7[6] ^ mds_in7[5]; 
+
+assign mds_out2[0] = mds_in0[0] ^ mds_in2[0] ^ mds_in3[0] ^ mds_in4[0] ^ mds_in5[0] ^ mds_in0[7] ^ mds_in0[6] ^ mds_in1[6] ^ mds_in4[6] ^ mds_in6[5] ^ mds_in7[7] ^ mds_in7[6]; 
+assign mds_out2[1] = mds_in0[1] ^ mds_in0[0] ^ mds_in2[1] ^ mds_in3[1] ^ mds_in4[1] ^ mds_in5[1] ^ mds_in7[0] ^ mds_in0[7] ^ mds_in1[7] ^ mds_in4[7] ^ mds_in6[6] ^ mds_in7[7]; 
+assign mds_out2[2] = mds_in0[2] ^ mds_in0[1] ^ mds_in0[0] ^ mds_in1[0] ^ mds_in2[2] ^ mds_in3[2] ^ mds_in4[2] ^ mds_in4[0] ^ mds_in5[2] ^ mds_in7[1] ^ mds_in7[0] ^ mds_in6[7] ^ mds_in0[7] ^ mds_in0[6] ^ mds_in1[6] ^ mds_in4[6] ^ mds_in6[5] ^ mds_in7[7] ^ mds_in7[6]; 
+assign mds_out2[3] = mds_in0[3] ^ mds_in0[2] ^ mds_in0[1] ^ mds_in1[1] ^ mds_in2[3] ^ mds_in3[3] ^ mds_in4[3] ^ mds_in4[1] ^ mds_in5[3] ^ mds_in6[0] ^ mds_in7[2] ^ mds_in7[1] ^ mds_in1[7] ^ mds_in4[7] ^ mds_in6[6] ^ mds_in0[6] ^ mds_in1[6] ^ mds_in4[6] ^ mds_in6[5] ^ mds_in7[6]; 
+assign mds_out2[4] = mds_in0[4] ^ mds_in0[3] ^ mds_in0[2] ^ mds_in1[2] ^ mds_in2[4] ^ mds_in3[4] ^ mds_in4[4] ^ mds_in4[2] ^ mds_in5[4] ^ mds_in6[1] ^ mds_in7[3] ^ mds_in7[2] ^ mds_in6[7] ^ mds_in1[7] ^ mds_in4[7] ^ mds_in6[6] ^ mds_in0[6] ^ mds_in1[6] ^ mds_in4[6] ^ mds_in6[5] ^ mds_in7[6]; 
+assign mds_out2[5] = mds_in0[5] ^ mds_in0[4] ^ mds_in0[3] ^ mds_in1[3] ^ mds_in2[5] ^ mds_in3[5] ^ mds_in4[5] ^ mds_in4[3] ^ mds_in5[5] ^ mds_in6[2] ^ mds_in7[4] ^ mds_in7[3] ^ mds_in6[7] ^ mds_in0[7] ^ mds_in1[7] ^ mds_in4[7] ^ mds_in6[6] ^ mds_in7[7]; 
+assign mds_out2[6] = mds_in0[6] ^ mds_in0[5] ^ mds_in0[4] ^ mds_in1[4] ^ mds_in2[6] ^ mds_in3[6] ^ mds_in4[6] ^ mds_in4[4] ^ mds_in5[6] ^ mds_in6[3] ^ mds_in7[5] ^ mds_in7[4] ^ mds_in6[7]; 
+assign mds_out2[7] = mds_in0[7] ^ mds_in0[6] ^ mds_in0[5] ^ mds_in1[5] ^ mds_in2[7] ^ mds_in3[7] ^ mds_in4[7] ^ mds_in4[5] ^ mds_in5[7] ^ mds_in6[4] ^ mds_in7[6] ^ mds_in7[5]; 
+
+assign mds_out3[0] = mds_in1[0] ^ mds_in3[0] ^ mds_in4[0] ^ mds_in5[0] ^ mds_in6[0] ^ mds_in0[7] ^ mds_in0[6] ^ mds_in1[7] ^ mds_in1[6] ^ mds_in2[6] ^ mds_in5[6] ^ mds_in7[5]; 
+assign mds_out3[1] = mds_in0[0] ^ mds_in1[1] ^ mds_in1[0] ^ mds_in3[1] ^ mds_in4[1] ^ mds_in5[1] ^ mds_in6[1] ^ mds_in0[7] ^ mds_in1[7] ^ mds_in2[7] ^ mds_in5[7] ^ mds_in7[6]; 
+assign mds_out3[2] = mds_in0[1] ^ mds_in0[0] ^ mds_in1[2] ^ mds_in1[1] ^ mds_in1[0] ^ mds_in2[0] ^ mds_in3[2] ^ mds_in4[2] ^ mds_in5[2] ^ mds_in5[0] ^ mds_in6[2] ^ mds_in7[7] ^ mds_in0[7] ^ mds_in0[6] ^ mds_in1[7] ^ mds_in1[6] ^ mds_in2[6] ^ mds_in5[6] ^ mds_in7[5]; 
+assign mds_out3[3] = mds_in0[2] ^ mds_in0[1] ^ mds_in1[3] ^ mds_in1[2] ^ mds_in1[1] ^ mds_in2[1] ^ mds_in3[3] ^ mds_in4[3] ^ mds_in5[3] ^ mds_in5[1] ^ mds_in6[3] ^ mds_in7[0] ^ mds_in2[7] ^ mds_in5[7] ^ mds_in7[6] ^ mds_in0[6] ^ mds_in1[6] ^ mds_in2[6] ^ mds_in5[6] ^ mds_in7[5]; 
+assign mds_out3[4] = mds_in0[3] ^ mds_in0[2] ^ mds_in1[4] ^ mds_in1[3] ^ mds_in1[2] ^ mds_in2[2] ^ mds_in3[4] ^ mds_in4[4] ^ mds_in5[4] ^ mds_in5[2] ^ mds_in6[4] ^ mds_in7[1] ^ mds_in7[7] ^ mds_in2[7] ^ mds_in5[7] ^ mds_in7[6] ^ mds_in0[6] ^ mds_in1[6] ^ mds_in2[6] ^ mds_in5[6] ^ mds_in7[5]; 
+assign mds_out3[5] = mds_in0[4] ^ mds_in0[3] ^ mds_in1[5] ^ mds_in1[4] ^ mds_in1[3] ^ mds_in2[3] ^ mds_in3[5] ^ mds_in4[5] ^ mds_in5[5] ^ mds_in5[3] ^ mds_in6[5] ^ mds_in7[2] ^ mds_in7[7] ^ mds_in0[7] ^ mds_in1[7] ^ mds_in2[7] ^ mds_in5[7] ^ mds_in7[6]; 
+assign mds_out3[6] = mds_in0[5] ^ mds_in0[4] ^ mds_in1[6] ^ mds_in1[5] ^ mds_in1[4] ^ mds_in2[4] ^ mds_in3[6] ^ mds_in4[6] ^ mds_in5[6] ^ mds_in5[4] ^ mds_in6[6] ^ mds_in7[3] ^ mds_in7[7]; 
+assign mds_out3[7] = mds_in0[6] ^ mds_in0[5] ^ mds_in1[7] ^ mds_in1[6] ^ mds_in1[5] ^ mds_in2[5] ^ mds_in3[7] ^ mds_in4[7] ^ mds_in5[7] ^ mds_in5[5] ^ mds_in6[7] ^ mds_in7[4]; 
+
+assign mds_out4[0] = mds_in2[0] ^ mds_in4[0] ^ mds_in5[0] ^ mds_in6[0] ^ mds_in7[0] ^ mds_in0[5] ^ mds_in1[7] ^ mds_in1[6] ^ mds_in2[7] ^ mds_in2[6] ^ mds_in3[6] ^ mds_in6[6]; 
+assign mds_out4[1] = mds_in1[0] ^ mds_in2[1] ^ mds_in2[0] ^ mds_in4[1] ^ mds_in5[1] ^ mds_in6[1] ^ mds_in7[1] ^ mds_in0[6] ^ mds_in1[7] ^ mds_in2[7] ^ mds_in3[7] ^ mds_in6[7]; 
+assign mds_out4[2] = mds_in1[1] ^ mds_in1[0] ^ mds_in2[2] ^ mds_in2[1] ^ mds_in2[0] ^ mds_in3[0] ^ mds_in4[2] ^ mds_in5[2] ^ mds_in6[2] ^ mds_in6[0] ^ mds_in7[2] ^ mds_in0[7] ^ mds_in0[5] ^ mds_in1[7] ^ mds_in1[6] ^ mds_in2[7] ^ mds_in2[6] ^ mds_in3[6] ^ mds_in6[6]; 
+assign mds_out4[3] = mds_in0[0] ^ mds_in1[2] ^ mds_in1[1] ^ mds_in2[3] ^ mds_in2[2] ^ mds_in2[1] ^ mds_in3[1] ^ mds_in4[3] ^ mds_in5[3] ^ mds_in6[3] ^ mds_in6[1] ^ mds_in7[3] ^ mds_in0[6] ^ mds_in3[7] ^ mds_in6[7] ^ mds_in0[5] ^ mds_in1[6] ^ mds_in2[6] ^ mds_in3[6] ^ mds_in6[6]; 
+assign mds_out4[4] = mds_in0[1] ^ mds_in1[3] ^ mds_in1[2] ^ mds_in2[4] ^ mds_in2[3] ^ mds_in2[2] ^ mds_in3[2] ^ mds_in4[4] ^ mds_in5[4] ^ mds_in6[4] ^ mds_in6[2] ^ mds_in7[4] ^ mds_in0[7] ^ mds_in0[6] ^ mds_in3[7] ^ mds_in6[7] ^ mds_in0[5] ^ mds_in1[6] ^ mds_in2[6] ^ mds_in3[6] ^ mds_in6[6]; 
+assign mds_out4[5] = mds_in0[2] ^ mds_in1[4] ^ mds_in1[3] ^ mds_in2[5] ^ mds_in2[4] ^ mds_in2[3] ^ mds_in3[3] ^ mds_in4[5] ^ mds_in5[5] ^ mds_in6[5] ^ mds_in6[3] ^ mds_in7[5] ^ mds_in0[7] ^ mds_in0[6] ^ mds_in1[7] ^ mds_in2[7] ^ mds_in3[7] ^ mds_in6[7]; 
+assign mds_out4[6] = mds_in0[3] ^ mds_in1[5] ^ mds_in1[4] ^ mds_in2[6] ^ mds_in2[5] ^ mds_in2[4] ^ mds_in3[4] ^ mds_in4[6] ^ mds_in5[6] ^ mds_in6[6] ^ mds_in6[4] ^ mds_in7[6] ^ mds_in0[7]; 
+assign mds_out4[7] = mds_in0[4] ^ mds_in1[6] ^ mds_in1[5] ^ mds_in2[7] ^ mds_in2[6] ^ mds_in2[5] ^ mds_in3[5] ^ mds_in4[7] ^ mds_in5[7] ^ mds_in6[7] ^ mds_in6[5] ^ mds_in7[7]; 
+
+assign mds_out5[0] = mds_in0[0] ^ mds_in3[0] ^ mds_in5[0] ^ mds_in6[0] ^ mds_in7[0] ^ mds_in1[5] ^ mds_in2[7] ^ mds_in2[6] ^ mds_in3[7] ^ mds_in3[6] ^ mds_in4[6] ^ mds_in7[6]; 
+assign mds_out5[1] = mds_in0[1] ^ mds_in2[0] ^ mds_in3[1] ^ mds_in3[0] ^ mds_in5[1] ^ mds_in6[1] ^ mds_in7[1] ^ mds_in1[6] ^ mds_in2[7] ^ mds_in3[7] ^ mds_in4[7] ^ mds_in7[7]; 
+assign mds_out5[2] = mds_in0[2] ^ mds_in2[1] ^ mds_in2[0] ^ mds_in3[2] ^ mds_in3[1] ^ mds_in3[0] ^ mds_in4[0] ^ mds_in5[2] ^ mds_in6[2] ^ mds_in7[2] ^ mds_in7[0] ^ mds_in1[7] ^ mds_in1[5] ^ mds_in2[7] ^ mds_in2[6] ^ mds_in3[7] ^ mds_in3[6] ^ mds_in4[6] ^ mds_in7[6]; 
+assign mds_out5[3] = mds_in0[3] ^ mds_in1[0] ^ mds_in2[2] ^ mds_in2[1] ^ mds_in3[3] ^ mds_in3[2] ^ mds_in3[1] ^ mds_in4[1] ^ mds_in5[3] ^ mds_in6[3] ^ mds_in7[3] ^ mds_in7[1] ^ mds_in1[6] ^ mds_in4[7] ^ mds_in7[7] ^ mds_in1[5] ^ mds_in2[6] ^ mds_in3[6] ^ mds_in4[6] ^ mds_in7[6]; 
+assign mds_out5[4] = mds_in0[4] ^ mds_in1[1] ^ mds_in2[3] ^ mds_in2[2] ^ mds_in3[4] ^ mds_in3[3] ^ mds_in3[2] ^ mds_in4[2] ^ mds_in5[4] ^ mds_in6[4] ^ mds_in7[4] ^ mds_in7[2] ^ mds_in1[7] ^ mds_in1[6] ^ mds_in4[7] ^ mds_in7[7] ^ mds_in1[5] ^ mds_in2[6] ^ mds_in3[6] ^ mds_in4[6] ^ mds_in7[6]; 
+assign mds_out5[5] = mds_in0[5] ^ mds_in1[2] ^ mds_in2[4] ^ mds_in2[3] ^ mds_in3[5] ^ mds_in3[4] ^ mds_in3[3] ^ mds_in4[3] ^ mds_in5[5] ^ mds_in6[5] ^ mds_in7[5] ^ mds_in7[3] ^ mds_in1[7] ^ mds_in1[6] ^ mds_in2[7] ^ mds_in3[7] ^ mds_in4[7] ^ mds_in7[7]; 
+assign mds_out5[6] = mds_in0[6] ^ mds_in1[3] ^ mds_in2[5] ^ mds_in2[4] ^ mds_in3[6] ^ mds_in3[5] ^ mds_in3[4] ^ mds_in4[4] ^ mds_in5[6] ^ mds_in6[6] ^ mds_in7[6] ^ mds_in7[4] ^ mds_in1[7]; 
+assign mds_out5[7] = mds_in0[7] ^ mds_in1[4] ^ mds_in2[6] ^ mds_in2[5] ^ mds_in3[7] ^ mds_in3[6] ^ mds_in3[5] ^ mds_in4[5] ^ mds_in5[7] ^ mds_in6[7] ^ mds_in7[7] ^ mds_in7[5]; 
+
+assign mds_out6[0] = mds_in0[0] ^ mds_in1[0] ^ mds_in4[0] ^ mds_in6[0] ^ mds_in7[0] ^ mds_in0[6] ^ mds_in2[5] ^ mds_in3[7] ^ mds_in3[6] ^ mds_in4[7] ^ mds_in4[6] ^ mds_in5[6]; 
+assign mds_out6[1] = mds_in0[1] ^ mds_in1[1] ^ mds_in3[0] ^ mds_in4[1] ^ mds_in4[0] ^ mds_in6[1] ^ mds_in7[1] ^ mds_in0[7] ^ mds_in2[6] ^ mds_in3[7] ^ mds_in4[7] ^ mds_in5[7]; 
+assign mds_out6[2] = mds_in0[2] ^ mds_in0[0] ^ mds_in1[2] ^ mds_in3[1] ^ mds_in3[0] ^ mds_in4[2] ^ mds_in4[1] ^ mds_in4[0] ^ mds_in5[0] ^ mds_in6[2] ^ mds_in7[2] ^ mds_in2[7] ^ mds_in0[6] ^ mds_in2[5] ^ mds_in3[7] ^ mds_in3[6] ^ mds_in4[7] ^ mds_in4[6] ^ mds_in5[6]; 
+assign mds_out6[3] = mds_in0[3] ^ mds_in0[1] ^ mds_in1[3] ^ mds_in2[0] ^ mds_in3[2] ^ mds_in3[1] ^ mds_in4[3] ^ mds_in4[2] ^ mds_in4[1] ^ mds_in5[1] ^ mds_in6[3] ^ mds_in7[3] ^ mds_in0[7] ^ mds_in2[6] ^ mds_in5[7] ^ mds_in0[6] ^ mds_in2[5] ^ mds_in3[6] ^ mds_in4[6] ^ mds_in5[6]; 
+assign mds_out6[4] = mds_in0[4] ^ mds_in0[2] ^ mds_in1[4] ^ mds_in2[1] ^ mds_in3[3] ^ mds_in3[2] ^ mds_in4[4] ^ mds_in4[3] ^ mds_in4[2] ^ mds_in5[2] ^ mds_in6[4] ^ mds_in7[4] ^ mds_in2[7] ^ mds_in0[7] ^ mds_in2[6] ^ mds_in5[7] ^ mds_in0[6] ^ mds_in2[5] ^ mds_in3[6] ^ mds_in4[6] ^ mds_in5[6]; 
+assign mds_out6[5] = mds_in0[5] ^ mds_in0[3] ^ mds_in1[5] ^ mds_in2[2] ^ mds_in3[4] ^ mds_in3[3] ^ mds_in4[5] ^ mds_in4[4] ^ mds_in4[3] ^ mds_in5[3] ^ mds_in6[5] ^ mds_in7[5] ^ mds_in2[7] ^ mds_in0[7] ^ mds_in2[6] ^ mds_in3[7] ^ mds_in4[7] ^ mds_in5[7]; 
+assign mds_out6[6] = mds_in0[6] ^ mds_in0[4] ^ mds_in1[6] ^ mds_in2[3] ^ mds_in3[5] ^ mds_in3[4] ^ mds_in4[6] ^ mds_in4[5] ^ mds_in4[4] ^ mds_in5[4] ^ mds_in6[6] ^ mds_in7[6] ^ mds_in2[7]; 
+assign mds_out6[7] = mds_in0[7] ^ mds_in0[5] ^ mds_in1[7] ^ mds_in2[4] ^ mds_in3[6] ^ mds_in3[5] ^ mds_in4[7] ^ mds_in4[6] ^ mds_in4[5] ^ mds_in5[5] ^ mds_in6[7] ^ mds_in7[7]; 
+
+assign mds_out7[0] = mds_in0[0] ^ mds_in1[0] ^ mds_in2[0] ^ mds_in5[0] ^ mds_in7[0] ^ mds_in1[6] ^ mds_in3[5] ^ mds_in4[7] ^ mds_in4[6] ^ mds_in5[7] ^ mds_in5[6] ^ mds_in6[6]; 
+assign mds_out7[1] = mds_in0[1] ^ mds_in1[1] ^ mds_in2[1] ^ mds_in4[0] ^ mds_in5[1] ^ mds_in5[0] ^ mds_in7[1] ^ mds_in1[7] ^ mds_in3[6] ^ mds_in4[7] ^ mds_in5[7] ^ mds_in6[7]; 
+assign mds_out7[2] = mds_in0[2] ^ mds_in1[2] ^ mds_in1[0] ^ mds_in2[2] ^ mds_in4[1] ^ mds_in4[0] ^ mds_in5[2] ^ mds_in5[1] ^ mds_in5[0] ^ mds_in6[0] ^ mds_in7[2] ^ mds_in3[7] ^ mds_in1[6] ^ mds_in3[5] ^ mds_in4[7] ^ mds_in4[6] ^ mds_in5[7] ^ mds_in5[6] ^ mds_in6[6]; 
+assign mds_out7[3] = mds_in0[3] ^ mds_in1[3] ^ mds_in1[1] ^ mds_in2[3] ^ mds_in3[0] ^ mds_in4[2] ^ mds_in4[1] ^ mds_in5[3] ^ mds_in5[2] ^ mds_in5[1] ^ mds_in6[1] ^ mds_in7[3] ^ mds_in1[7] ^ mds_in3[6] ^ mds_in6[7] ^ mds_in1[6] ^ mds_in3[5] ^ mds_in4[6] ^ mds_in5[6] ^ mds_in6[6]; 
+assign mds_out7[4] = mds_in0[4] ^ mds_in1[4] ^ mds_in1[2] ^ mds_in2[4] ^ mds_in3[1] ^ mds_in4[3] ^ mds_in4[2] ^ mds_in5[4] ^ mds_in5[3] ^ mds_in5[2] ^ mds_in6[2] ^ mds_in7[4] ^ mds_in3[7] ^ mds_in1[7] ^ mds_in3[6] ^ mds_in6[7] ^ mds_in1[6] ^ mds_in3[5] ^ mds_in4[6] ^ mds_in5[6] ^ mds_in6[6]; 
+assign mds_out7[5] = mds_in0[5] ^ mds_in1[5] ^ mds_in1[3] ^ mds_in2[5] ^ mds_in3[2] ^ mds_in4[4] ^ mds_in4[3] ^ mds_in5[5] ^ mds_in5[4] ^ mds_in5[3] ^ mds_in6[3] ^ mds_in7[5] ^ mds_in3[7] ^ mds_in1[7] ^ mds_in3[6] ^ mds_in4[7] ^ mds_in5[7] ^ mds_in6[7]; 
+assign mds_out7[6] = mds_in0[6] ^ mds_in1[6] ^ mds_in1[4] ^ mds_in2[6] ^ mds_in3[3] ^ mds_in4[5] ^ mds_in4[4] ^ mds_in5[6] ^ mds_in5[5] ^ mds_in5[4] ^ mds_in6[4] ^ mds_in7[6] ^ mds_in3[7]; 
+assign mds_out7[7] = mds_in0[7] ^ mds_in1[7] ^ mds_in1[5] ^ mds_in2[7] ^ mds_in3[4] ^ mds_in4[6] ^ mds_in4[5] ^ mds_in5[7] ^ mds_in5[6] ^ mds_in5[5] ^ mds_in6[5] ^ mds_in7[7]; 
+
+endmodule 
+
+//INVERSE CMVM GF
+module kalyna_inv_cmvm_gf (mds_in0, mds_in1, mds_in2, mds_in3, mds_in4, mds_in5, mds_in6, mds_in7, mds_out0, mds_out1, mds_out2, mds_out3, mds_out4, mds_out5, mds_out6, mds_out7); 
+
+input [7:0] mds_in0, mds_in1, mds_in2, mds_in3, mds_in4, mds_in5, mds_in6, mds_in7; 
+output [7:0] mds_out0, mds_out1, mds_out2, mds_out3, mds_out4, mds_out5, mds_out6, mds_out7; 
+
+assign mds_out0[0] = mds_in0[0] ^ mds_in1[0] ^ mds_in4[0] ^ mds_in5[0] ^ mds_in6[0] ^ mds_in0[3] ^ mds_in0[1] ^ mds_in1[4] ^ mds_in1[1] ^ mds_in2[7] ^ mds_in2[4] ^ mds_in2[3] ^ mds_in2[2] ^ mds_in3[3] ^ mds_in3[1] ^ mds_in4[6] ^ mds_in4[5] ^ mds_in4[3] ^ mds_in5[5] ^ mds_in5[2] ^ mds_in6[7] ^ mds_in6[6] ^ mds_in6[4] ^ mds_in6[2] ^ mds_in6[1] ^ mds_in7[7] ^ mds_in7[2] ^ mds_in7[1] ^ mds_in1[7] ^ mds_in3[6] ^ mds_in5[7] ^ mds_in1[5] ^ mds_in5[6] ^ mds_in6[5]; 
+assign mds_out0[1] = mds_in0[1] ^ mds_in1[1] ^ mds_in2[0] ^ mds_in4[1] ^ mds_in4[0] ^ mds_in5[1] ^ mds_in6[1] ^ mds_in6[0] ^ mds_in7[0] ^ mds_in0[4] ^ mds_in0[2] ^ mds_in1[5] ^ mds_in1[2] ^ mds_in2[5] ^ mds_in2[4] ^ mds_in2[3] ^ mds_in3[4] ^ mds_in3[2] ^ mds_in4[7] ^ mds_in4[6] ^ mds_in4[4] ^ mds_in5[6] ^ mds_in5[3] ^ mds_in6[7] ^ mds_in6[5] ^ mds_in6[3] ^ mds_in6[2] ^ mds_in7[3] ^ mds_in7[2] ^ mds_in3[7] ^ mds_in1[6] ^ mds_in5[7] ^ mds_in6[6]; 
+assign mds_out0[2] = mds_in0[2] ^ mds_in0[0] ^ mds_in1[2] ^ mds_in1[0] ^ mds_in2[1] ^ mds_in2[0] ^ mds_in4[2] ^ mds_in4[1] ^ mds_in4[0] ^ mds_in6[0] ^ mds_in0[5] ^ mds_in1[6] ^ mds_in1[3] ^ mds_in2[6] ^ mds_in2[5] ^ mds_in3[5] ^ mds_in4[7] ^ mds_in5[4] ^ mds_in6[3] ^ mds_in7[7] ^ mds_in7[4] ^ mds_in7[3] ^ mds_in0[1] ^ mds_in1[4] ^ mds_in1[1] ^ mds_in2[7] ^ mds_in2[3] ^ mds_in2[2] ^ mds_in3[1] ^ mds_in4[6] ^ mds_in4[3] ^ mds_in5[5] ^ mds_in7[2] ^ mds_in3[6] ^ mds_in1[5] ^ mds_in5[6] ^ mds_in6[5]; 
+assign mds_out0[3] = mds_in0[0] ^ mds_in1[3] ^ mds_in2[1] ^ mds_in3[0] ^ mds_in4[2] ^ mds_in4[1] ^ mds_in4[0] ^ mds_in5[0] ^ mds_in6[2] ^ mds_in7[2] ^ mds_in7[0] ^ mds_in0[6] ^ mds_in2[6] ^ mds_in4[6] ^ mds_in6[7] ^ mds_in6[5] ^ mds_in7[5] ^ mds_in7[4] ^ mds_in0[2] ^ mds_in1[2] ^ mds_in3[2] ^ mds_in4[7] ^ mds_in4[4] ^ mds_in7[3] ^ mds_in3[7] ^ mds_in7[7] ^ mds_in1[6] ^ mds_in3[3] ^ mds_in3[1] ^ mds_in4[5] ^ mds_in5[2] ^ mds_in7[1]; 
+assign mds_out0[4] = mds_in1[0] ^ mds_in2[3] ^ mds_in2[0] ^ mds_in4[2] ^ mds_in4[1] ^ mds_in5[1] ^ mds_in6[4] ^ mds_in6[3] ^ mds_in6[2] ^ mds_in6[0] ^ mds_in7[3] ^ mds_in0[7] ^ mds_in1[5] ^ mds_in4[7] ^ mds_in5[6] ^ mds_in6[5] ^ mds_in7[6] ^ mds_in7[5] ^ mds_in1[3] ^ mds_in2[4] ^ mds_in5[7] ^ mds_in7[7] ^ mds_in7[4] ^ mds_in6[7] ^ mds_in3[6] ^ mds_in3[4] ^ mds_in3[2] ^ mds_in5[3] ^ mds_in1[1] ^ mds_in5[5] ^ mds_in5[2] ^ mds_in6[1]; 
+assign mds_out0[5] = mds_in0[0] ^ mds_in1[1] ^ mds_in2[4] ^ mds_in2[1] ^ mds_in2[0] ^ mds_in3[0] ^ mds_in4[3] ^ mds_in4[2] ^ mds_in4[0] ^ mds_in5[2] ^ mds_in6[5] ^ mds_in6[4] ^ mds_in6[3] ^ mds_in6[1] ^ mds_in7[4] ^ mds_in1[6] ^ mds_in5[7] ^ mds_in6[6] ^ mds_in7[7] ^ mds_in7[6] ^ mds_in1[4] ^ mds_in2[5] ^ mds_in7[5] ^ mds_in3[7] ^ mds_in3[5] ^ mds_in3[3] ^ mds_in5[4] ^ mds_in1[2] ^ mds_in5[6] ^ mds_in5[3] ^ mds_in6[2]; 
+assign mds_out0[6] = mds_in0[1] ^ mds_in1[2] ^ mds_in2[5] ^ mds_in2[2] ^ mds_in2[1] ^ mds_in2[0] ^ mds_in3[1] ^ mds_in4[4] ^ mds_in4[3] ^ mds_in4[1] ^ mds_in5[3] ^ mds_in5[0] ^ mds_in6[6] ^ mds_in6[5] ^ mds_in6[4] ^ mds_in6[2] ^ mds_in6[0] ^ mds_in7[5] ^ mds_in7[0] ^ mds_in1[7] ^ mds_in6[7] ^ mds_in7[7] ^ mds_in1[5] ^ mds_in2[6] ^ mds_in7[6] ^ mds_in3[6] ^ mds_in3[4] ^ mds_in5[5] ^ mds_in1[3] ^ mds_in5[7] ^ mds_in5[4] ^ mds_in6[3]; 
+assign mds_out0[7] = mds_in0[2] ^ mds_in0[0] ^ mds_in1[3] ^ mds_in1[0] ^ mds_in2[6] ^ mds_in2[3] ^ mds_in2[2] ^ mds_in2[1] ^ mds_in3[2] ^ mds_in3[0] ^ mds_in4[5] ^ mds_in4[4] ^ mds_in4[2] ^ mds_in5[4] ^ mds_in5[1] ^ mds_in6[7] ^ mds_in6[6] ^ mds_in6[5] ^ mds_in6[3] ^ mds_in6[1] ^ mds_in6[0] ^ mds_in7[6] ^ mds_in7[1] ^ mds_in7[0] ^ mds_in1[6] ^ mds_in2[7] ^ mds_in7[7] ^ mds_in3[7] ^ mds_in3[5] ^ mds_in5[6] ^ mds_in1[4] ^ mds_in5[5] ^ mds_in6[4]; 
+
+assign mds_out1[0] = mds_in1[0] ^ mds_in2[0] ^ mds_in5[0] ^ mds_in6[0] ^ mds_in7[0] ^ mds_in0[7] ^ mds_in0[2] ^ mds_in0[1] ^ mds_in1[3] ^ mds_in1[1] ^ mds_in2[4] ^ mds_in2[1] ^ mds_in3[7] ^ mds_in3[4] ^ mds_in3[3] ^ mds_in3[2] ^ mds_in4[3] ^ mds_in4[1] ^ mds_in5[6] ^ mds_in5[5] ^ mds_in5[3] ^ mds_in6[5] ^ mds_in6[2] ^ mds_in7[7] ^ mds_in7[6] ^ mds_in7[4] ^ mds_in7[2] ^ mds_in7[1] ^ mds_in2[7] ^ mds_in4[6] ^ mds_in6[7] ^ mds_in2[5] ^ mds_in6[6] ^ mds_in7[5]; 
+assign mds_out1[1] = mds_in0[0] ^ mds_in1[1] ^ mds_in2[1] ^ mds_in3[0] ^ mds_in5[1] ^ mds_in5[0] ^ mds_in6[1] ^ mds_in7[1] ^ mds_in7[0] ^ mds_in0[3] ^ mds_in0[2] ^ mds_in1[4] ^ mds_in1[2] ^ mds_in2[5] ^ mds_in2[2] ^ mds_in3[5] ^ mds_in3[4] ^ mds_in3[3] ^ mds_in4[4] ^ mds_in4[2] ^ mds_in5[7] ^ mds_in5[6] ^ mds_in5[4] ^ mds_in6[6] ^ mds_in6[3] ^ mds_in7[7] ^ mds_in7[5] ^ mds_in7[3] ^ mds_in7[2] ^ mds_in4[7] ^ mds_in2[6] ^ mds_in6[7] ^ mds_in7[6]; 
+assign mds_out1[2] = mds_in1[2] ^ mds_in1[0] ^ mds_in2[2] ^ mds_in2[0] ^ mds_in3[1] ^ mds_in3[0] ^ mds_in5[2] ^ mds_in5[1] ^ mds_in5[0] ^ mds_in7[0] ^ mds_in0[7] ^ mds_in0[4] ^ mds_in0[3] ^ mds_in1[5] ^ mds_in2[6] ^ mds_in2[3] ^ mds_in3[6] ^ mds_in3[5] ^ mds_in4[5] ^ mds_in5[7] ^ mds_in6[4] ^ mds_in7[3] ^ mds_in0[2] ^ mds_in1[1] ^ mds_in2[4] ^ mds_in2[1] ^ mds_in3[7] ^ mds_in3[3] ^ mds_in3[2] ^ mds_in4[1] ^ mds_in5[6] ^ mds_in5[3] ^ mds_in6[5] ^ mds_in4[6] ^ mds_in2[5] ^ mds_in6[6] ^ mds_in7[5]; 
+assign mds_out1[3] = mds_in0[2] ^ mds_in0[0] ^ mds_in1[0] ^ mds_in2[3] ^ mds_in3[1] ^ mds_in4[0] ^ mds_in5[2] ^ mds_in5[1] ^ mds_in5[0] ^ mds_in6[0] ^ mds_in7[2] ^ mds_in0[5] ^ mds_in0[4] ^ mds_in1[6] ^ mds_in3[6] ^ mds_in5[6] ^ mds_in7[7] ^ mds_in7[5] ^ mds_in0[3] ^ mds_in1[2] ^ mds_in2[2] ^ mds_in4[2] ^ mds_in5[7] ^ mds_in5[4] ^ mds_in0[7] ^ mds_in4[7] ^ mds_in2[6] ^ mds_in0[1] ^ mds_in4[3] ^ mds_in4[1] ^ mds_in5[5] ^ mds_in6[2]; 
+assign mds_out1[4] = mds_in0[3] ^ mds_in2[0] ^ mds_in3[3] ^ mds_in3[0] ^ mds_in5[2] ^ mds_in5[1] ^ mds_in6[1] ^ mds_in7[4] ^ mds_in7[3] ^ mds_in7[2] ^ mds_in7[0] ^ mds_in0[6] ^ mds_in0[5] ^ mds_in1[7] ^ mds_in2[5] ^ mds_in5[7] ^ mds_in6[6] ^ mds_in7[5] ^ mds_in0[7] ^ mds_in0[4] ^ mds_in2[3] ^ mds_in3[4] ^ mds_in6[7] ^ mds_in7[7] ^ mds_in4[6] ^ mds_in4[4] ^ mds_in4[2] ^ mds_in6[3] ^ mds_in2[1] ^ mds_in6[5] ^ mds_in6[2] ^ mds_in7[1]; 
+assign mds_out1[5] = mds_in0[4] ^ mds_in1[0] ^ mds_in2[1] ^ mds_in3[4] ^ mds_in3[1] ^ mds_in3[0] ^ mds_in4[0] ^ mds_in5[3] ^ mds_in5[2] ^ mds_in5[0] ^ mds_in6[2] ^ mds_in7[5] ^ mds_in7[4] ^ mds_in7[3] ^ mds_in7[1] ^ mds_in0[7] ^ mds_in0[6] ^ mds_in2[6] ^ mds_in6[7] ^ mds_in7[6] ^ mds_in0[5] ^ mds_in2[4] ^ mds_in3[5] ^ mds_in4[7] ^ mds_in4[5] ^ mds_in4[3] ^ mds_in6[4] ^ mds_in2[2] ^ mds_in6[6] ^ mds_in6[3] ^ mds_in7[2]; 
+assign mds_out1[6] = mds_in0[5] ^ mds_in0[0] ^ mds_in1[1] ^ mds_in2[2] ^ mds_in3[5] ^ mds_in3[2] ^ mds_in3[1] ^ mds_in3[0] ^ mds_in4[1] ^ mds_in5[4] ^ mds_in5[3] ^ mds_in5[1] ^ mds_in6[3] ^ mds_in6[0] ^ mds_in7[6] ^ mds_in7[5] ^ mds_in7[4] ^ mds_in7[2] ^ mds_in7[0] ^ mds_in0[7] ^ mds_in2[7] ^ mds_in7[7] ^ mds_in0[6] ^ mds_in2[5] ^ mds_in3[6] ^ mds_in4[6] ^ mds_in4[4] ^ mds_in6[5] ^ mds_in2[3] ^ mds_in6[7] ^ mds_in6[4] ^ mds_in7[3]; 
+assign mds_out1[7] = mds_in0[6] ^ mds_in0[1] ^ mds_in0[0] ^ mds_in1[2] ^ mds_in1[0] ^ mds_in2[3] ^ mds_in2[0] ^ mds_in3[6] ^ mds_in3[3] ^ mds_in3[2] ^ mds_in3[1] ^ mds_in4[2] ^ mds_in4[0] ^ mds_in5[5] ^ mds_in5[4] ^ mds_in5[2] ^ mds_in6[4] ^ mds_in6[1] ^ mds_in7[7] ^ mds_in7[6] ^ mds_in7[5] ^ mds_in7[3] ^ mds_in7[1] ^ mds_in7[0] ^ mds_in0[7] ^ mds_in2[6] ^ mds_in3[7] ^ mds_in4[7] ^ mds_in4[5] ^ mds_in6[6] ^ mds_in2[4] ^ mds_in6[5] ^ mds_in7[4]; 
+
+assign mds_out2[0] = mds_in0[0] ^ mds_in2[0] ^ mds_in3[0] ^ mds_in6[0] ^ mds_in7[0] ^ mds_in0[7] ^ mds_in0[6] ^ mds_in0[4] ^ mds_in0[2] ^ mds_in0[1] ^ mds_in1[7] ^ mds_in1[2] ^ mds_in1[1] ^ mds_in2[3] ^ mds_in2[1] ^ mds_in3[4] ^ mds_in3[1] ^ mds_in4[7] ^ mds_in4[4] ^ mds_in4[3] ^ mds_in4[2] ^ mds_in5[3] ^ mds_in5[1] ^ mds_in6[6] ^ mds_in6[5] ^ mds_in6[3] ^ mds_in7[5] ^ mds_in7[2] ^ mds_in3[7] ^ mds_in5[6] ^ mds_in7[7] ^ mds_in0[5] ^ mds_in3[5] ^ mds_in7[6]; 
+assign mds_out2[1] = mds_in0[1] ^ mds_in0[0] ^ mds_in1[0] ^ mds_in2[1] ^ mds_in3[1] ^ mds_in4[0] ^ mds_in6[1] ^ mds_in6[0] ^ mds_in7[1] ^ mds_in0[7] ^ mds_in0[5] ^ mds_in0[3] ^ mds_in0[2] ^ mds_in1[3] ^ mds_in1[2] ^ mds_in2[4] ^ mds_in2[2] ^ mds_in3[5] ^ mds_in3[2] ^ mds_in4[5] ^ mds_in4[4] ^ mds_in4[3] ^ mds_in5[4] ^ mds_in5[2] ^ mds_in6[7] ^ mds_in6[6] ^ mds_in6[4] ^ mds_in7[6] ^ mds_in7[3] ^ mds_in5[7] ^ mds_in0[6] ^ mds_in3[6] ^ mds_in7[7]; 
+assign mds_out2[2] = mds_in0[0] ^ mds_in2[2] ^ mds_in2[0] ^ mds_in3[2] ^ mds_in3[0] ^ mds_in4[1] ^ mds_in4[0] ^ mds_in6[2] ^ mds_in6[1] ^ mds_in6[0] ^ mds_in0[3] ^ mds_in1[7] ^ mds_in1[4] ^ mds_in1[3] ^ mds_in2[5] ^ mds_in3[6] ^ mds_in3[3] ^ mds_in4[6] ^ mds_in4[5] ^ mds_in5[5] ^ mds_in6[7] ^ mds_in7[4] ^ mds_in1[2] ^ mds_in2[1] ^ mds_in3[4] ^ mds_in3[1] ^ mds_in4[7] ^ mds_in4[3] ^ mds_in4[2] ^ mds_in5[1] ^ mds_in6[6] ^ mds_in6[3] ^ mds_in7[5] ^ mds_in5[6] ^ mds_in0[5] ^ mds_in3[5] ^ mds_in7[6]; 
+assign mds_out2[3] = mds_in0[2] ^ mds_in1[2] ^ mds_in1[0] ^ mds_in2[0] ^ mds_in3[3] ^ mds_in4[1] ^ mds_in5[0] ^ mds_in6[2] ^ mds_in6[1] ^ mds_in6[0] ^ mds_in7[0] ^ mds_in0[7] ^ mds_in0[5] ^ mds_in1[5] ^ mds_in1[4] ^ mds_in2[6] ^ mds_in4[6] ^ mds_in6[6] ^ mds_in1[3] ^ mds_in2[2] ^ mds_in3[2] ^ mds_in5[2] ^ mds_in6[7] ^ mds_in6[4] ^ mds_in1[7] ^ mds_in5[7] ^ mds_in3[6] ^ mds_in1[1] ^ mds_in5[3] ^ mds_in5[1] ^ mds_in6[5] ^ mds_in7[2]; 
+assign mds_out2[4] = mds_in0[4] ^ mds_in0[3] ^ mds_in0[2] ^ mds_in0[0] ^ mds_in1[3] ^ mds_in3[0] ^ mds_in4[3] ^ mds_in4[0] ^ mds_in6[2] ^ mds_in6[1] ^ mds_in7[1] ^ mds_in0[5] ^ mds_in1[6] ^ mds_in1[5] ^ mds_in2[7] ^ mds_in3[5] ^ mds_in6[7] ^ mds_in7[6] ^ mds_in1[7] ^ mds_in1[4] ^ mds_in3[3] ^ mds_in4[4] ^ mds_in7[7] ^ mds_in0[7] ^ mds_in5[6] ^ mds_in5[4] ^ mds_in5[2] ^ mds_in7[3] ^ mds_in0[1] ^ mds_in3[1] ^ mds_in7[5] ^ mds_in7[2]; 
+assign mds_out2[5] = mds_in0[5] ^ mds_in0[4] ^ mds_in0[3] ^ mds_in0[1] ^ mds_in1[4] ^ mds_in2[0] ^ mds_in3[1] ^ mds_in4[4] ^ mds_in4[1] ^ mds_in4[0] ^ mds_in5[0] ^ mds_in6[3] ^ mds_in6[2] ^ mds_in6[0] ^ mds_in7[2] ^ mds_in0[6] ^ mds_in1[7] ^ mds_in1[6] ^ mds_in3[6] ^ mds_in7[7] ^ mds_in1[5] ^ mds_in3[4] ^ mds_in4[5] ^ mds_in5[7] ^ mds_in5[5] ^ mds_in5[3] ^ mds_in7[4] ^ mds_in0[2] ^ mds_in3[2] ^ mds_in7[6] ^ mds_in7[3]; 
+assign mds_out2[6] = mds_in0[6] ^ mds_in0[5] ^ mds_in0[4] ^ mds_in0[2] ^ mds_in0[0] ^ mds_in1[5] ^ mds_in1[0] ^ mds_in2[1] ^ mds_in3[2] ^ mds_in4[5] ^ mds_in4[2] ^ mds_in4[1] ^ mds_in4[0] ^ mds_in5[1] ^ mds_in6[4] ^ mds_in6[3] ^ mds_in6[1] ^ mds_in7[3] ^ mds_in7[0] ^ mds_in0[7] ^ mds_in1[7] ^ mds_in3[7] ^ mds_in1[6] ^ mds_in3[5] ^ mds_in4[6] ^ mds_in5[6] ^ mds_in5[4] ^ mds_in7[5] ^ mds_in0[3] ^ mds_in3[3] ^ mds_in7[7] ^ mds_in7[4]; 
+assign mds_out2[7] = mds_in0[7] ^ mds_in0[6] ^ mds_in0[5] ^ mds_in0[3] ^ mds_in0[1] ^ mds_in0[0] ^ mds_in1[6] ^ mds_in1[1] ^ mds_in1[0] ^ mds_in2[2] ^ mds_in2[0] ^ mds_in3[3] ^ mds_in3[0] ^ mds_in4[6] ^ mds_in4[3] ^ mds_in4[2] ^ mds_in4[1] ^ mds_in5[2] ^ mds_in5[0] ^ mds_in6[5] ^ mds_in6[4] ^ mds_in6[2] ^ mds_in7[4] ^ mds_in7[1] ^ mds_in1[7] ^ mds_in3[6] ^ mds_in4[7] ^ mds_in5[7] ^ mds_in5[5] ^ mds_in7[6] ^ mds_in0[4] ^ mds_in3[4] ^ mds_in7[5]; 
+
+assign mds_out3[0] = mds_in0[0] ^ mds_in1[0] ^ mds_in3[0] ^ mds_in4[0] ^ mds_in7[0] ^ mds_in0[5] ^ mds_in0[2] ^ mds_in1[7] ^ mds_in1[6] ^ mds_in1[4] ^ mds_in1[2] ^ mds_in1[1] ^ mds_in2[7] ^ mds_in2[2] ^ mds_in2[1] ^ mds_in3[3] ^ mds_in3[1] ^ mds_in4[4] ^ mds_in4[1] ^ mds_in5[7] ^ mds_in5[4] ^ mds_in5[3] ^ mds_in5[2] ^ mds_in6[3] ^ mds_in6[1] ^ mds_in7[6] ^ mds_in7[5] ^ mds_in7[3] ^ mds_in4[7] ^ mds_in0[7] ^ mds_in6[6] ^ mds_in0[6] ^ mds_in1[5] ^ mds_in4[5]; 
+assign mds_out3[1] = mds_in0[1] ^ mds_in1[1] ^ mds_in1[0] ^ mds_in2[0] ^ mds_in3[1] ^ mds_in4[1] ^ mds_in5[0] ^ mds_in7[1] ^ mds_in7[0] ^ mds_in0[6] ^ mds_in0[3] ^ mds_in1[7] ^ mds_in1[5] ^ mds_in1[3] ^ mds_in1[2] ^ mds_in2[3] ^ mds_in2[2] ^ mds_in3[4] ^ mds_in3[2] ^ mds_in4[5] ^ mds_in4[2] ^ mds_in5[5] ^ mds_in5[4] ^ mds_in5[3] ^ mds_in6[4] ^ mds_in6[2] ^ mds_in7[7] ^ mds_in7[6] ^ mds_in7[4] ^ mds_in6[7] ^ mds_in0[7] ^ mds_in1[6] ^ mds_in4[6]; 
+assign mds_out3[2] = mds_in1[0] ^ mds_in3[2] ^ mds_in3[0] ^ mds_in4[2] ^ mds_in4[0] ^ mds_in5[1] ^ mds_in5[0] ^ mds_in7[2] ^ mds_in7[1] ^ mds_in7[0] ^ mds_in0[4] ^ mds_in1[3] ^ mds_in2[7] ^ mds_in2[4] ^ mds_in2[3] ^ mds_in3[5] ^ mds_in4[6] ^ mds_in4[3] ^ mds_in5[6] ^ mds_in5[5] ^ mds_in6[5] ^ mds_in7[7] ^ mds_in0[5] ^ mds_in2[2] ^ mds_in3[1] ^ mds_in4[4] ^ mds_in4[1] ^ mds_in5[7] ^ mds_in5[3] ^ mds_in5[2] ^ mds_in6[1] ^ mds_in7[6] ^ mds_in7[3] ^ mds_in6[6] ^ mds_in0[6] ^ mds_in1[5] ^ mds_in4[5]; 
+assign mds_out3[3] = mds_in0[0] ^ mds_in1[2] ^ mds_in2[2] ^ mds_in2[0] ^ mds_in3[0] ^ mds_in4[3] ^ mds_in5[1] ^ mds_in6[0] ^ mds_in7[2] ^ mds_in7[1] ^ mds_in7[0] ^ mds_in1[7] ^ mds_in1[5] ^ mds_in2[5] ^ mds_in2[4] ^ mds_in3[6] ^ mds_in5[6] ^ mds_in7[6] ^ mds_in2[3] ^ mds_in3[2] ^ mds_in4[2] ^ mds_in6[2] ^ mds_in7[7] ^ mds_in7[4] ^ mds_in2[7] ^ mds_in6[7] ^ mds_in4[6] ^ mds_in0[2] ^ mds_in2[1] ^ mds_in6[3] ^ mds_in6[1] ^ mds_in7[5]; 
+assign mds_out3[4] = mds_in0[1] ^ mds_in1[4] ^ mds_in1[3] ^ mds_in1[2] ^ mds_in1[0] ^ mds_in2[3] ^ mds_in4[0] ^ mds_in5[3] ^ mds_in5[0] ^ mds_in7[2] ^ mds_in7[1] ^ mds_in0[6] ^ mds_in1[5] ^ mds_in2[6] ^ mds_in2[5] ^ mds_in3[7] ^ mds_in4[5] ^ mds_in7[7] ^ mds_in0[7] ^ mds_in2[7] ^ mds_in2[4] ^ mds_in4[3] ^ mds_in5[4] ^ mds_in1[7] ^ mds_in0[3] ^ mds_in6[6] ^ mds_in6[4] ^ mds_in6[2] ^ mds_in0[5] ^ mds_in0[2] ^ mds_in1[1] ^ mds_in4[1]; 
+assign mds_out3[5] = mds_in0[2] ^ mds_in1[5] ^ mds_in1[4] ^ mds_in1[3] ^ mds_in1[1] ^ mds_in2[4] ^ mds_in3[0] ^ mds_in4[1] ^ mds_in5[4] ^ mds_in5[1] ^ mds_in5[0] ^ mds_in6[0] ^ mds_in7[3] ^ mds_in7[2] ^ mds_in7[0] ^ mds_in0[7] ^ mds_in1[6] ^ mds_in2[7] ^ mds_in2[6] ^ mds_in4[6] ^ mds_in2[5] ^ mds_in4[4] ^ mds_in5[5] ^ mds_in0[4] ^ mds_in6[7] ^ mds_in6[5] ^ mds_in6[3] ^ mds_in0[6] ^ mds_in0[3] ^ mds_in1[2] ^ mds_in4[2]; 
+assign mds_out3[6] = mds_in0[3] ^ mds_in0[0] ^ mds_in1[6] ^ mds_in1[5] ^ mds_in1[4] ^ mds_in1[2] ^ mds_in1[0] ^ mds_in2[5] ^ mds_in2[0] ^ mds_in3[1] ^ mds_in4[2] ^ mds_in5[5] ^ mds_in5[2] ^ mds_in5[1] ^ mds_in5[0] ^ mds_in6[1] ^ mds_in7[4] ^ mds_in7[3] ^ mds_in7[1] ^ mds_in1[7] ^ mds_in2[7] ^ mds_in4[7] ^ mds_in2[6] ^ mds_in4[5] ^ mds_in5[6] ^ mds_in0[5] ^ mds_in6[6] ^ mds_in6[4] ^ mds_in0[7] ^ mds_in0[4] ^ mds_in1[3] ^ mds_in4[3]; 
+assign mds_out3[7] = mds_in0[4] ^ mds_in0[1] ^ mds_in1[7] ^ mds_in1[6] ^ mds_in1[5] ^ mds_in1[3] ^ mds_in1[1] ^ mds_in1[0] ^ mds_in2[6] ^ mds_in2[1] ^ mds_in2[0] ^ mds_in3[2] ^ mds_in3[0] ^ mds_in4[3] ^ mds_in4[0] ^ mds_in5[6] ^ mds_in5[3] ^ mds_in5[2] ^ mds_in5[1] ^ mds_in6[2] ^ mds_in6[0] ^ mds_in7[5] ^ mds_in7[4] ^ mds_in7[2] ^ mds_in2[7] ^ mds_in4[6] ^ mds_in5[7] ^ mds_in0[6] ^ mds_in6[7] ^ mds_in6[5] ^ mds_in0[5] ^ mds_in1[4] ^ mds_in4[4]; 
+
+assign mds_out4[0] = mds_in0[0] ^ mds_in1[0] ^ mds_in2[0] ^ mds_in4[0] ^ mds_in5[0] ^ mds_in0[6] ^ mds_in0[5] ^ mds_in0[3] ^ mds_in1[5] ^ mds_in1[2] ^ mds_in2[7] ^ mds_in2[6] ^ mds_in2[4] ^ mds_in2[2] ^ mds_in2[1] ^ mds_in3[7] ^ mds_in3[2] ^ mds_in3[1] ^ mds_in4[3] ^ mds_in4[1] ^ mds_in5[4] ^ mds_in5[1] ^ mds_in6[7] ^ mds_in6[4] ^ mds_in6[3] ^ mds_in6[2] ^ mds_in7[3] ^ mds_in7[1] ^ mds_in5[7] ^ mds_in1[7] ^ mds_in7[6] ^ mds_in1[6] ^ mds_in2[5] ^ mds_in5[5]; 
+assign mds_out4[1] = mds_in0[1] ^ mds_in0[0] ^ mds_in1[1] ^ mds_in2[1] ^ mds_in2[0] ^ mds_in3[0] ^ mds_in4[1] ^ mds_in5[1] ^ mds_in6[0] ^ mds_in0[7] ^ mds_in0[6] ^ mds_in0[4] ^ mds_in1[6] ^ mds_in1[3] ^ mds_in2[7] ^ mds_in2[5] ^ mds_in2[3] ^ mds_in2[2] ^ mds_in3[3] ^ mds_in3[2] ^ mds_in4[4] ^ mds_in4[2] ^ mds_in5[5] ^ mds_in5[2] ^ mds_in6[5] ^ mds_in6[4] ^ mds_in6[3] ^ mds_in7[4] ^ mds_in7[2] ^ mds_in7[7] ^ mds_in1[7] ^ mds_in2[6] ^ mds_in5[6]; 
+assign mds_out4[2] = mds_in0[2] ^ mds_in0[1] ^ mds_in0[0] ^ mds_in2[0] ^ mds_in4[2] ^ mds_in4[0] ^ mds_in5[2] ^ mds_in5[0] ^ mds_in6[1] ^ mds_in6[0] ^ mds_in0[7] ^ mds_in1[4] ^ mds_in2[3] ^ mds_in3[7] ^ mds_in3[4] ^ mds_in3[3] ^ mds_in4[5] ^ mds_in5[6] ^ mds_in5[3] ^ mds_in6[6] ^ mds_in6[5] ^ mds_in7[5] ^ mds_in0[6] ^ mds_in0[3] ^ mds_in1[5] ^ mds_in3[2] ^ mds_in4[1] ^ mds_in5[4] ^ mds_in5[1] ^ mds_in6[7] ^ mds_in6[3] ^ mds_in6[2] ^ mds_in7[1] ^ mds_in7[6] ^ mds_in1[6] ^ mds_in2[5] ^ mds_in5[5]; 
+assign mds_out4[3] = mds_in0[2] ^ mds_in0[1] ^ mds_in0[0] ^ mds_in1[0] ^ mds_in2[2] ^ mds_in3[2] ^ mds_in3[0] ^ mds_in4[0] ^ mds_in5[3] ^ mds_in6[1] ^ mds_in7[0] ^ mds_in0[6] ^ mds_in2[7] ^ mds_in2[5] ^ mds_in3[5] ^ mds_in3[4] ^ mds_in4[6] ^ mds_in6[6] ^ mds_in0[7] ^ mds_in0[4] ^ mds_in3[3] ^ mds_in4[2] ^ mds_in5[2] ^ mds_in7[2] ^ mds_in3[7] ^ mds_in7[7] ^ mds_in5[6] ^ mds_in0[5] ^ mds_in1[2] ^ mds_in3[1] ^ mds_in7[3] ^ mds_in7[1]; 
+assign mds_out4[4] = mds_in0[2] ^ mds_in0[1] ^ mds_in1[1] ^ mds_in2[4] ^ mds_in2[3] ^ mds_in2[2] ^ mds_in2[0] ^ mds_in3[3] ^ mds_in5[0] ^ mds_in6[3] ^ mds_in6[0] ^ mds_in0[7] ^ mds_in1[6] ^ mds_in2[5] ^ mds_in3[6] ^ mds_in3[5] ^ mds_in4[7] ^ mds_in5[5] ^ mds_in1[7] ^ mds_in3[7] ^ mds_in3[4] ^ mds_in5[3] ^ mds_in6[4] ^ mds_in2[7] ^ mds_in1[3] ^ mds_in7[6] ^ mds_in7[4] ^ mds_in7[2] ^ mds_in1[5] ^ mds_in1[2] ^ mds_in2[1] ^ mds_in5[1]; 
+assign mds_out4[5] = mds_in0[3] ^ mds_in0[2] ^ mds_in0[0] ^ mds_in1[2] ^ mds_in2[5] ^ mds_in2[4] ^ mds_in2[3] ^ mds_in2[1] ^ mds_in3[4] ^ mds_in4[0] ^ mds_in5[1] ^ mds_in6[4] ^ mds_in6[1] ^ mds_in6[0] ^ mds_in7[0] ^ mds_in1[7] ^ mds_in2[6] ^ mds_in3[7] ^ mds_in3[6] ^ mds_in5[6] ^ mds_in3[5] ^ mds_in5[4] ^ mds_in6[5] ^ mds_in1[4] ^ mds_in7[7] ^ mds_in7[5] ^ mds_in7[3] ^ mds_in1[6] ^ mds_in1[3] ^ mds_in2[2] ^ mds_in5[2]; 
+assign mds_out4[6] = mds_in0[4] ^ mds_in0[3] ^ mds_in0[1] ^ mds_in1[3] ^ mds_in1[0] ^ mds_in2[6] ^ mds_in2[5] ^ mds_in2[4] ^ mds_in2[2] ^ mds_in2[0] ^ mds_in3[5] ^ mds_in3[0] ^ mds_in4[1] ^ mds_in5[2] ^ mds_in6[5] ^ mds_in6[2] ^ mds_in6[1] ^ mds_in6[0] ^ mds_in7[1] ^ mds_in2[7] ^ mds_in3[7] ^ mds_in5[7] ^ mds_in3[6] ^ mds_in5[5] ^ mds_in6[6] ^ mds_in1[5] ^ mds_in7[6] ^ mds_in7[4] ^ mds_in1[7] ^ mds_in1[4] ^ mds_in2[3] ^ mds_in5[3]; 
+assign mds_out4[7] = mds_in0[5] ^ mds_in0[4] ^ mds_in0[2] ^ mds_in1[4] ^ mds_in1[1] ^ mds_in2[7] ^ mds_in2[6] ^ mds_in2[5] ^ mds_in2[3] ^ mds_in2[1] ^ mds_in2[0] ^ mds_in3[6] ^ mds_in3[1] ^ mds_in3[0] ^ mds_in4[2] ^ mds_in4[0] ^ mds_in5[3] ^ mds_in5[0] ^ mds_in6[6] ^ mds_in6[3] ^ mds_in6[2] ^ mds_in6[1] ^ mds_in7[2] ^ mds_in7[0] ^ mds_in3[7] ^ mds_in5[6] ^ mds_in6[7] ^ mds_in1[6] ^ mds_in7[7] ^ mds_in7[5] ^ mds_in1[5] ^ mds_in2[4] ^ mds_in5[4]; 
+
+assign mds_out5[0] = mds_in1[0] ^ mds_in2[0] ^ mds_in3[0] ^ mds_in5[0] ^ mds_in6[0] ^ mds_in0[3] ^ mds_in0[1] ^ mds_in1[6] ^ mds_in1[5] ^ mds_in1[3] ^ mds_in2[5] ^ mds_in2[2] ^ mds_in3[7] ^ mds_in3[6] ^ mds_in3[4] ^ mds_in3[2] ^ mds_in3[1] ^ mds_in4[7] ^ mds_in4[2] ^ mds_in4[1] ^ mds_in5[3] ^ mds_in5[1] ^ mds_in6[4] ^ mds_in6[1] ^ mds_in7[7] ^ mds_in7[4] ^ mds_in7[3] ^ mds_in7[2] ^ mds_in6[7] ^ mds_in0[6] ^ mds_in2[7] ^ mds_in2[6] ^ mds_in3[5] ^ mds_in6[5]; 
+assign mds_out5[1] = mds_in1[1] ^ mds_in1[0] ^ mds_in2[1] ^ mds_in3[1] ^ mds_in3[0] ^ mds_in4[0] ^ mds_in5[1] ^ mds_in6[1] ^ mds_in7[0] ^ mds_in0[4] ^ mds_in0[2] ^ mds_in1[7] ^ mds_in1[6] ^ mds_in1[4] ^ mds_in2[6] ^ mds_in2[3] ^ mds_in3[7] ^ mds_in3[5] ^ mds_in3[3] ^ mds_in3[2] ^ mds_in4[3] ^ mds_in4[2] ^ mds_in5[4] ^ mds_in5[2] ^ mds_in6[5] ^ mds_in6[2] ^ mds_in7[5] ^ mds_in7[4] ^ mds_in7[3] ^ mds_in0[7] ^ mds_in2[7] ^ mds_in3[6] ^ mds_in6[6]; 
+assign mds_out5[2] = mds_in1[2] ^ mds_in1[1] ^ mds_in1[0] ^ mds_in3[0] ^ mds_in5[2] ^ mds_in5[0] ^ mds_in6[2] ^ mds_in6[0] ^ mds_in7[1] ^ mds_in7[0] ^ mds_in0[5] ^ mds_in1[7] ^ mds_in2[4] ^ mds_in3[3] ^ mds_in4[7] ^ mds_in4[4] ^ mds_in4[3] ^ mds_in5[5] ^ mds_in6[6] ^ mds_in6[3] ^ mds_in7[6] ^ mds_in7[5] ^ mds_in0[1] ^ mds_in1[6] ^ mds_in1[3] ^ mds_in2[5] ^ mds_in4[2] ^ mds_in5[1] ^ mds_in6[4] ^ mds_in6[1] ^ mds_in7[7] ^ mds_in7[3] ^ mds_in7[2] ^ mds_in0[6] ^ mds_in2[6] ^ mds_in3[5] ^ mds_in6[5]; 
+assign mds_out5[3] = mds_in0[0] ^ mds_in1[2] ^ mds_in1[1] ^ mds_in1[0] ^ mds_in2[0] ^ mds_in3[2] ^ mds_in4[2] ^ mds_in4[0] ^ mds_in5[0] ^ mds_in6[3] ^ mds_in7[1] ^ mds_in1[6] ^ mds_in3[7] ^ mds_in3[5] ^ mds_in4[5] ^ mds_in4[4] ^ mds_in5[6] ^ mds_in7[6] ^ mds_in0[2] ^ mds_in1[7] ^ mds_in1[4] ^ mds_in4[3] ^ mds_in5[2] ^ mds_in6[2] ^ mds_in0[7] ^ mds_in4[7] ^ mds_in6[6] ^ mds_in0[3] ^ mds_in0[1] ^ mds_in1[5] ^ mds_in2[2] ^ mds_in4[1]; 
+assign mds_out5[4] = mds_in1[2] ^ mds_in1[1] ^ mds_in2[1] ^ mds_in3[4] ^ mds_in3[3] ^ mds_in3[2] ^ mds_in3[0] ^ mds_in4[3] ^ mds_in6[0] ^ mds_in7[3] ^ mds_in7[0] ^ mds_in1[7] ^ mds_in2[6] ^ mds_in3[5] ^ mds_in4[6] ^ mds_in4[5] ^ mds_in5[7] ^ mds_in6[5] ^ mds_in2[7] ^ mds_in4[7] ^ mds_in4[4] ^ mds_in6[3] ^ mds_in7[4] ^ mds_in3[7] ^ mds_in0[6] ^ mds_in0[4] ^ mds_in0[2] ^ mds_in2[3] ^ mds_in2[5] ^ mds_in2[2] ^ mds_in3[1] ^ mds_in6[1]; 
+assign mds_out5[5] = mds_in0[0] ^ mds_in1[3] ^ mds_in1[2] ^ mds_in1[0] ^ mds_in2[2] ^ mds_in3[5] ^ mds_in3[4] ^ mds_in3[3] ^ mds_in3[1] ^ mds_in4[4] ^ mds_in5[0] ^ mds_in6[1] ^ mds_in7[4] ^ mds_in7[1] ^ mds_in7[0] ^ mds_in2[7] ^ mds_in3[6] ^ mds_in4[7] ^ mds_in4[6] ^ mds_in6[6] ^ mds_in4[5] ^ mds_in6[4] ^ mds_in7[5] ^ mds_in0[7] ^ mds_in0[5] ^ mds_in0[3] ^ mds_in2[4] ^ mds_in2[6] ^ mds_in2[3] ^ mds_in3[2] ^ mds_in6[2]; 
+assign mds_out5[6] = mds_in0[1] ^ mds_in1[4] ^ mds_in1[3] ^ mds_in1[1] ^ mds_in2[3] ^ mds_in2[0] ^ mds_in3[6] ^ mds_in3[5] ^ mds_in3[4] ^ mds_in3[2] ^ mds_in3[0] ^ mds_in4[5] ^ mds_in4[0] ^ mds_in5[1] ^ mds_in6[2] ^ mds_in7[5] ^ mds_in7[2] ^ mds_in7[1] ^ mds_in7[0] ^ mds_in3[7] ^ mds_in4[7] ^ mds_in6[7] ^ mds_in4[6] ^ mds_in6[5] ^ mds_in7[6] ^ mds_in0[6] ^ mds_in0[4] ^ mds_in2[5] ^ mds_in2[7] ^ mds_in2[4] ^ mds_in3[3] ^ mds_in6[3]; 
+assign mds_out5[7] = mds_in0[2] ^ mds_in0[0] ^ mds_in1[5] ^ mds_in1[4] ^ mds_in1[2] ^ mds_in2[4] ^ mds_in2[1] ^ mds_in3[7] ^ mds_in3[6] ^ mds_in3[5] ^ mds_in3[3] ^ mds_in3[1] ^ mds_in3[0] ^ mds_in4[6] ^ mds_in4[1] ^ mds_in4[0] ^ mds_in5[2] ^ mds_in5[0] ^ mds_in6[3] ^ mds_in6[0] ^ mds_in7[6] ^ mds_in7[3] ^ mds_in7[2] ^ mds_in7[1] ^ mds_in4[7] ^ mds_in6[6] ^ mds_in7[7] ^ mds_in0[7] ^ mds_in0[5] ^ mds_in2[6] ^ mds_in2[5] ^ mds_in3[4] ^ mds_in6[4]; 
+
+assign mds_out6[0] = mds_in2[0] ^ mds_in3[0] ^ mds_in4[0] ^ mds_in6[0] ^ mds_in7[0] ^ mds_in0[7] ^ mds_in0[4] ^ mds_in0[3] ^ mds_in0[2] ^ mds_in1[3] ^ mds_in1[1] ^ mds_in2[6] ^ mds_in2[5] ^ mds_in2[3] ^ mds_in3[5] ^ mds_in3[2] ^ mds_in4[7] ^ mds_in4[6] ^ mds_in4[4] ^ mds_in4[2] ^ mds_in4[1] ^ mds_in5[7] ^ mds_in5[2] ^ mds_in5[1] ^ mds_in6[3] ^ mds_in6[1] ^ mds_in7[4] ^ mds_in7[1] ^ mds_in7[7] ^ mds_in1[6] ^ mds_in3[7] ^ mds_in3[6] ^ mds_in4[5] ^ mds_in7[5]; 
+assign mds_out6[1] = mds_in0[0] ^ mds_in2[1] ^ mds_in2[0] ^ mds_in3[1] ^ mds_in4[1] ^ mds_in4[0] ^ mds_in5[0] ^ mds_in6[1] ^ mds_in7[1] ^ mds_in0[5] ^ mds_in0[4] ^ mds_in0[3] ^ mds_in1[4] ^ mds_in1[2] ^ mds_in2[7] ^ mds_in2[6] ^ mds_in2[4] ^ mds_in3[6] ^ mds_in3[3] ^ mds_in4[7] ^ mds_in4[5] ^ mds_in4[3] ^ mds_in4[2] ^ mds_in5[3] ^ mds_in5[2] ^ mds_in6[4] ^ mds_in6[2] ^ mds_in7[5] ^ mds_in7[2] ^ mds_in1[7] ^ mds_in3[7] ^ mds_in4[6] ^ mds_in7[6]; 
+assign mds_out6[2] = mds_in0[1] ^ mds_in0[0] ^ mds_in2[2] ^ mds_in2[1] ^ mds_in2[0] ^ mds_in4[0] ^ mds_in6[2] ^ mds_in6[0] ^ mds_in7[2] ^ mds_in7[0] ^ mds_in0[6] ^ mds_in0[5] ^ mds_in1[5] ^ mds_in2[7] ^ mds_in3[4] ^ mds_in4[3] ^ mds_in5[7] ^ mds_in5[4] ^ mds_in5[3] ^ mds_in6[5] ^ mds_in7[6] ^ mds_in7[3] ^ mds_in0[7] ^ mds_in0[3] ^ mds_in0[2] ^ mds_in1[1] ^ mds_in2[6] ^ mds_in2[3] ^ mds_in3[5] ^ mds_in5[2] ^ mds_in6[1] ^ mds_in7[4] ^ mds_in7[1] ^ mds_in1[6] ^ mds_in3[6] ^ mds_in4[5] ^ mds_in7[5]; 
+assign mds_out6[3] = mds_in0[1] ^ mds_in1[0] ^ mds_in2[2] ^ mds_in2[1] ^ mds_in2[0] ^ mds_in3[0] ^ mds_in4[2] ^ mds_in5[2] ^ mds_in5[0] ^ mds_in6[0] ^ mds_in7[3] ^ mds_in0[6] ^ mds_in2[6] ^ mds_in4[7] ^ mds_in4[5] ^ mds_in5[5] ^ mds_in5[4] ^ mds_in6[6] ^ mds_in1[2] ^ mds_in2[7] ^ mds_in2[4] ^ mds_in5[3] ^ mds_in6[2] ^ mds_in7[2] ^ mds_in1[7] ^ mds_in5[7] ^ mds_in7[6] ^ mds_in1[3] ^ mds_in1[1] ^ mds_in2[5] ^ mds_in3[2] ^ mds_in5[1]; 
+assign mds_out6[4] = mds_in0[3] ^ mds_in0[0] ^ mds_in2[2] ^ mds_in2[1] ^ mds_in3[1] ^ mds_in4[4] ^ mds_in4[3] ^ mds_in4[2] ^ mds_in4[0] ^ mds_in5[3] ^ mds_in7[0] ^ mds_in2[7] ^ mds_in3[6] ^ mds_in4[5] ^ mds_in5[6] ^ mds_in5[5] ^ mds_in6[7] ^ mds_in7[5] ^ mds_in0[4] ^ mds_in3[7] ^ mds_in5[7] ^ mds_in5[4] ^ mds_in7[3] ^ mds_in4[7] ^ mds_in1[6] ^ mds_in1[4] ^ mds_in1[2] ^ mds_in3[3] ^ mds_in3[5] ^ mds_in3[2] ^ mds_in4[1] ^ mds_in7[1]; 
+assign mds_out6[5] = mds_in0[4] ^ mds_in0[1] ^ mds_in0[0] ^ mds_in1[0] ^ mds_in2[3] ^ mds_in2[2] ^ mds_in2[0] ^ mds_in3[2] ^ mds_in4[5] ^ mds_in4[4] ^ mds_in4[3] ^ mds_in4[1] ^ mds_in5[4] ^ mds_in6[0] ^ mds_in7[1] ^ mds_in3[7] ^ mds_in4[6] ^ mds_in5[7] ^ mds_in5[6] ^ mds_in7[6] ^ mds_in0[5] ^ mds_in5[5] ^ mds_in7[4] ^ mds_in1[7] ^ mds_in1[5] ^ mds_in1[3] ^ mds_in3[4] ^ mds_in3[6] ^ mds_in3[3] ^ mds_in4[2] ^ mds_in7[2]; 
+assign mds_out6[6] = mds_in0[5] ^ mds_in0[2] ^ mds_in0[1] ^ mds_in0[0] ^ mds_in1[1] ^ mds_in2[4] ^ mds_in2[3] ^ mds_in2[1] ^ mds_in3[3] ^ mds_in3[0] ^ mds_in4[6] ^ mds_in4[5] ^ mds_in4[4] ^ mds_in4[2] ^ mds_in4[0] ^ mds_in5[5] ^ mds_in5[0] ^ mds_in6[1] ^ mds_in7[2] ^ mds_in4[7] ^ mds_in5[7] ^ mds_in7[7] ^ mds_in0[6] ^ mds_in5[6] ^ mds_in7[5] ^ mds_in1[6] ^ mds_in1[4] ^ mds_in3[5] ^ mds_in3[7] ^ mds_in3[4] ^ mds_in4[3] ^ mds_in7[3]; 
+assign mds_out6[7] = mds_in0[6] ^ mds_in0[3] ^ mds_in0[2] ^ mds_in0[1] ^ mds_in1[2] ^ mds_in1[0] ^ mds_in2[5] ^ mds_in2[4] ^ mds_in2[2] ^ mds_in3[4] ^ mds_in3[1] ^ mds_in4[7] ^ mds_in4[6] ^ mds_in4[5] ^ mds_in4[3] ^ mds_in4[1] ^ mds_in4[0] ^ mds_in5[6] ^ mds_in5[1] ^ mds_in5[0] ^ mds_in6[2] ^ mds_in6[0] ^ mds_in7[3] ^ mds_in7[0] ^ mds_in0[7] ^ mds_in5[7] ^ mds_in7[6] ^ mds_in1[7] ^ mds_in1[5] ^ mds_in3[6] ^ mds_in3[5] ^ mds_in4[4] ^ mds_in7[4]; 
+
+assign mds_out7[0] = mds_in0[0] ^ mds_in3[0] ^ mds_in4[0] ^ mds_in5[0] ^ mds_in7[0] ^ mds_in0[4] ^ mds_in0[1] ^ mds_in1[7] ^ mds_in1[4] ^ mds_in1[3] ^ mds_in1[2] ^ mds_in2[3] ^ mds_in2[1] ^ mds_in3[6] ^ mds_in3[5] ^ mds_in3[3] ^ mds_in4[5] ^ mds_in4[2] ^ mds_in5[7] ^ mds_in5[6] ^ mds_in5[4] ^ mds_in5[2] ^ mds_in5[1] ^ mds_in6[7] ^ mds_in6[2] ^ mds_in6[1] ^ mds_in7[3] ^ mds_in7[1] ^ mds_in0[7] ^ mds_in2[6] ^ mds_in4[7] ^ mds_in0[5] ^ mds_in4[6] ^ mds_in5[5]; 
+assign mds_out7[1] = mds_in0[1] ^ mds_in1[0] ^ mds_in3[1] ^ mds_in3[0] ^ mds_in4[1] ^ mds_in5[1] ^ mds_in5[0] ^ mds_in6[0] ^ mds_in7[1] ^ mds_in0[5] ^ mds_in0[2] ^ mds_in1[5] ^ mds_in1[4] ^ mds_in1[3] ^ mds_in2[4] ^ mds_in2[2] ^ mds_in3[7] ^ mds_in3[6] ^ mds_in3[4] ^ mds_in4[6] ^ mds_in4[3] ^ mds_in5[7] ^ mds_in5[5] ^ mds_in5[3] ^ mds_in5[2] ^ mds_in6[3] ^ mds_in6[2] ^ mds_in7[4] ^ mds_in7[2] ^ mds_in2[7] ^ mds_in0[6] ^ mds_in4[7] ^ mds_in5[6]; 
+assign mds_out7[2] = mds_in0[2] ^ mds_in0[0] ^ mds_in1[1] ^ mds_in1[0] ^ mds_in3[2] ^ mds_in3[1] ^ mds_in3[0] ^ mds_in5[0] ^ mds_in7[2] ^ mds_in7[0] ^ mds_in0[6] ^ mds_in0[3] ^ mds_in1[6] ^ mds_in1[5] ^ mds_in2[5] ^ mds_in3[7] ^ mds_in4[4] ^ mds_in5[3] ^ mds_in6[7] ^ mds_in6[4] ^ mds_in6[3] ^ mds_in7[5] ^ mds_in0[4] ^ mds_in0[1] ^ mds_in1[7] ^ mds_in1[3] ^ mds_in1[2] ^ mds_in2[1] ^ mds_in3[6] ^ mds_in3[3] ^ mds_in4[5] ^ mds_in6[2] ^ mds_in7[1] ^ mds_in2[6] ^ mds_in0[5] ^ mds_in4[6] ^ mds_in5[5]; 
+assign mds_out7[3] = mds_in0[3] ^ mds_in1[1] ^ mds_in2[0] ^ mds_in3[2] ^ mds_in3[1] ^ mds_in3[0] ^ mds_in4[0] ^ mds_in5[2] ^ mds_in6[2] ^ mds_in6[0] ^ mds_in7[0] ^ mds_in1[6] ^ mds_in3[6] ^ mds_in5[7] ^ mds_in5[5] ^ mds_in6[5] ^ mds_in6[4] ^ mds_in7[6] ^ mds_in0[2] ^ mds_in2[2] ^ mds_in3[7] ^ mds_in3[4] ^ mds_in6[3] ^ mds_in7[2] ^ mds_in2[7] ^ mds_in6[7] ^ mds_in0[6] ^ mds_in2[3] ^ mds_in2[1] ^ mds_in3[5] ^ mds_in4[2] ^ mds_in6[1]; 
+assign mds_out7[4] = mds_in0[0] ^ mds_in1[3] ^ mds_in1[0] ^ mds_in3[2] ^ mds_in3[1] ^ mds_in4[1] ^ mds_in5[4] ^ mds_in5[3] ^ mds_in5[2] ^ mds_in5[0] ^ mds_in6[3] ^ mds_in0[5] ^ mds_in3[7] ^ mds_in4[6] ^ mds_in5[5] ^ mds_in6[6] ^ mds_in6[5] ^ mds_in7[7] ^ mds_in0[3] ^ mds_in1[4] ^ mds_in4[7] ^ mds_in6[7] ^ mds_in6[4] ^ mds_in5[7] ^ mds_in2[6] ^ mds_in2[4] ^ mds_in2[2] ^ mds_in4[3] ^ mds_in0[1] ^ mds_in4[5] ^ mds_in4[2] ^ mds_in5[1]; 
+assign mds_out7[5] = mds_in0[1] ^ mds_in1[4] ^ mds_in1[1] ^ mds_in1[0] ^ mds_in2[0] ^ mds_in3[3] ^ mds_in3[2] ^ mds_in3[0] ^ mds_in4[2] ^ mds_in5[5] ^ mds_in5[4] ^ mds_in5[3] ^ mds_in5[1] ^ mds_in6[4] ^ mds_in7[0] ^ mds_in0[6] ^ mds_in4[7] ^ mds_in5[6] ^ mds_in6[7] ^ mds_in6[6] ^ mds_in0[4] ^ mds_in1[5] ^ mds_in6[5] ^ mds_in2[7] ^ mds_in2[5] ^ mds_in2[3] ^ mds_in4[4] ^ mds_in0[2] ^ mds_in4[6] ^ mds_in4[3] ^ mds_in5[2]; 
+assign mds_out7[6] = mds_in0[2] ^ mds_in1[5] ^ mds_in1[2] ^ mds_in1[1] ^ mds_in1[0] ^ mds_in2[1] ^ mds_in3[4] ^ mds_in3[3] ^ mds_in3[1] ^ mds_in4[3] ^ mds_in4[0] ^ mds_in5[6] ^ mds_in5[5] ^ mds_in5[4] ^ mds_in5[2] ^ mds_in5[0] ^ mds_in6[5] ^ mds_in6[0] ^ mds_in7[1] ^ mds_in0[7] ^ mds_in5[7] ^ mds_in6[7] ^ mds_in0[5] ^ mds_in1[6] ^ mds_in6[6] ^ mds_in2[6] ^ mds_in2[4] ^ mds_in4[5] ^ mds_in0[3] ^ mds_in4[7] ^ mds_in4[4] ^ mds_in5[3]; 
+assign mds_out7[7] = mds_in0[3] ^ mds_in0[0] ^ mds_in1[6] ^ mds_in1[3] ^ mds_in1[2] ^ mds_in1[1] ^ mds_in2[2] ^ mds_in2[0] ^ mds_in3[5] ^ mds_in3[4] ^ mds_in3[2] ^ mds_in4[4] ^ mds_in4[1] ^ mds_in5[7] ^ mds_in5[6] ^ mds_in5[5] ^ mds_in5[3] ^ mds_in5[1] ^ mds_in5[0] ^ mds_in6[6] ^ mds_in6[1] ^ mds_in6[0] ^ mds_in7[2] ^ mds_in7[0] ^ mds_in0[6] ^ mds_in1[7] ^ mds_in6[7] ^ mds_in2[7] ^ mds_in2[5] ^ mds_in4[6] ^ mds_in0[4] ^ mds_in4[5] ^ mds_in5[4]; 
+
+endmodule 
+
+//SBOX 0
+module kalyna_sbox_0 (sbox_in, sbox_out); 
+
+input [7:0] sbox_in; 
+output reg [7:0] sbox_out; 
+
+always @ (*) begin 
+  case (sbox_in) 
+    8'b00000000 : sbox_out = 8'hA8; 
+    8'b00000001 : sbox_out = 8'h43; 
+    8'b00000010 : sbox_out = 8'h5F; 
+    8'b00000011 : sbox_out = 8'h06; 
+    8'b00000100 : sbox_out = 8'h6B; 
+    8'b00000101 : sbox_out = 8'h75; 
+    8'b00000110 : sbox_out = 8'h6C; 
+    8'b00000111 : sbox_out = 8'h59; 
+    8'b00001000 : sbox_out = 8'h71; 
+    8'b00001001 : sbox_out = 8'hDF; 
+    8'b00001010 : sbox_out = 8'h87; 
+    8'b00001011 : sbox_out = 8'h95; 
+    8'b00001100 : sbox_out = 8'h17; 
+    8'b00001101 : sbox_out = 8'hF0; 
+    8'b00001110 : sbox_out = 8'hD8; 
+    8'b00001111 : sbox_out = 8'h09; 
+
+    8'b00010000 : sbox_out = 8'h6D; 
+    8'b00010001 : sbox_out = 8'hF3; 
+    8'b00010010 : sbox_out = 8'h1D; 
+    8'b00010011 : sbox_out = 8'hCB; 
+    8'b00010100 : sbox_out = 8'hC9; 
+    8'b00010101 : sbox_out = 8'h4D; 
+    8'b00010110 : sbox_out = 8'h2C; 
+    8'b00010111 : sbox_out = 8'hAF; 
+    8'b00011000 : sbox_out = 8'h79; 
+    8'b00011001 : sbox_out = 8'hE0; 
+    8'b00011010 : sbox_out = 8'h97; 
+    8'b00011011 : sbox_out = 8'hFD; 
+    8'b00011100 : sbox_out = 8'h6F; 
+    8'b00011101 : sbox_out = 8'h4B; 
+    8'b00011110 : sbox_out = 8'h45; 
+    8'b00011111 : sbox_out = 8'h39; 
+
+    8'b00100000 : sbox_out = 8'h3E; 
+    8'b00100001 : sbox_out = 8'hDD; 
+    8'b00100010 : sbox_out = 8'hA3; 
+    8'b00100011 : sbox_out = 8'h4F; 
+    8'b00100100 : sbox_out = 8'hB4; 
+    8'b00100101 : sbox_out = 8'hB6; 
+    8'b00100110 : sbox_out = 8'h9A; 
+    8'b00100111 : sbox_out = 8'h0E; 
+    8'b00101000 : sbox_out = 8'h1F; 
+    8'b00101001 : sbox_out = 8'hBF; 
+    8'b00101010 : sbox_out = 8'h15; 
+    8'b00101011 : sbox_out = 8'hE1; 
+    8'b00101100 : sbox_out = 8'h49; 
+    8'b00101101 : sbox_out = 8'hD2; 
+    8'b00101110 : sbox_out = 8'h93; 
+    8'b00101111 : sbox_out = 8'hC6; 
+
+    8'b00110000 : sbox_out = 8'h92; 
+    8'b00110001 : sbox_out = 8'h72; 
+    8'b00110010 : sbox_out = 8'h9E; 
+    8'b00110011 : sbox_out = 8'h61; 
+    8'b00110100 : sbox_out = 8'hD1; 
+    8'b00110101 : sbox_out = 8'h63; 
+    8'b00110110 : sbox_out = 8'hFA; 
+    8'b00110111 : sbox_out = 8'hEE; 
+    8'b00111000 : sbox_out = 8'hF4; 
+    8'b00111001 : sbox_out = 8'h19; 
+    8'b00111010 : sbox_out = 8'hD5; 
+    8'b00111011 : sbox_out = 8'hAD; 
+    8'b00111100 : sbox_out = 8'h58; 
+    8'b00111101 : sbox_out = 8'hA4; 
+    8'b00111110 : sbox_out = 8'hBB; 
+    8'b00111111 : sbox_out = 8'hA1; 
+
+    8'b01000000 : sbox_out = 8'hDC; 
+    8'b01000001 : sbox_out = 8'hF2; 
+    8'b01000010 : sbox_out = 8'h83; 
+    8'b01000011 : sbox_out = 8'h37; 
+    8'b01000100 : sbox_out = 8'h42; 
+    8'b01000101 : sbox_out = 8'hE4; 
+    8'b01000110 : sbox_out = 8'h7A; 
+    8'b01000111 : sbox_out = 8'h32; 
+    8'b01001000 : sbox_out = 8'h9C; 
+    8'b01001001 : sbox_out = 8'hCC; 
+    8'b01001010 : sbox_out = 8'hAB; 
+    8'b01001011 : sbox_out = 8'h4A; 
+    8'b01001100 : sbox_out = 8'h8F; 
+    8'b01001101 : sbox_out = 8'h6E; 
+    8'b01001110 : sbox_out = 8'h04; 
+    8'b01001111 : sbox_out = 8'h27; 
+
+    8'b01010000 : sbox_out = 8'h2E; 
+    8'b01010001 : sbox_out = 8'hE7; 
+    8'b01010010 : sbox_out = 8'hE2; 
+    8'b01010011 : sbox_out = 8'h5A; 
+    8'b01010100 : sbox_out = 8'h96; 
+    8'b01010101 : sbox_out = 8'h16; 
+    8'b01010110 : sbox_out = 8'h23; 
+    8'b01010111 : sbox_out = 8'h2B; 
+    8'b01011000 : sbox_out = 8'hC2; 
+    8'b01011001 : sbox_out = 8'h65; 
+    8'b01011010 : sbox_out = 8'h66; 
+    8'b01011011 : sbox_out = 8'h0F; 
+    8'b01011100 : sbox_out = 8'hBC; 
+    8'b01011101 : sbox_out = 8'hA9; 
+    8'b01011110 : sbox_out = 8'h47; 
+    8'b01011111 : sbox_out = 8'h41; 
+
+    8'b01100000 : sbox_out = 8'h34; 
+    8'b01100001 : sbox_out = 8'h48; 
+    8'b01100010 : sbox_out = 8'hFC; 
+    8'b01100011 : sbox_out = 8'hB7; 
+    8'b01100100 : sbox_out = 8'h6A; 
+    8'b01100101 : sbox_out = 8'h88; 
+    8'b01100110 : sbox_out = 8'hA5; 
+    8'b01100111 : sbox_out = 8'h53; 
+    8'b01101000 : sbox_out = 8'h86; 
+    8'b01101001 : sbox_out = 8'hF9; 
+    8'b01101010 : sbox_out = 8'h5B; 
+    8'b01101011 : sbox_out = 8'hDB; 
+    8'b01101100 : sbox_out = 8'h38; 
+    8'b01101101 : sbox_out = 8'h7B; 
+    8'b01101110 : sbox_out = 8'hC3; 
+    8'b01101111 : sbox_out = 8'h1E; 
+
+    8'b01110000 : sbox_out = 8'h22; 
+    8'b01110001 : sbox_out = 8'h33; 
+    8'b01110010 : sbox_out = 8'h24; 
+    8'b01110011 : sbox_out = 8'h28; 
+    8'b01110100 : sbox_out = 8'h36; 
+    8'b01110101 : sbox_out = 8'hC7; 
+    8'b01110110 : sbox_out = 8'hB2; 
+    8'b01110111 : sbox_out = 8'h3B; 
+    8'b01111000 : sbox_out = 8'h8E; 
+    8'b01111001 : sbox_out = 8'h77; 
+    8'b01111010 : sbox_out = 8'hBA; 
+    8'b01111011 : sbox_out = 8'hF5; 
+    8'b01111100 : sbox_out = 8'h14; 
+    8'b01111101 : sbox_out = 8'h9F; 
+    8'b01111110 : sbox_out = 8'h08; 
+    8'b01111111 : sbox_out = 8'h55; 
+
+    8'b10000000 : sbox_out = 8'h9B; 
+    8'b10000001 : sbox_out = 8'h4C; 
+    8'b10000010 : sbox_out = 8'hFE; 
+    8'b10000011 : sbox_out = 8'h60; 
+    8'b10000100 : sbox_out = 8'h5C; 
+    8'b10000101 : sbox_out = 8'hDA; 
+    8'b10000110 : sbox_out = 8'h18; 
+    8'b10000111 : sbox_out = 8'h46; 
+    8'b10001000 : sbox_out = 8'hCD; 
+    8'b10001001 : sbox_out = 8'h7D; 
+    8'b10001010 : sbox_out = 8'h21; 
+    8'b10001011 : sbox_out = 8'hB0; 
+    8'b10001100 : sbox_out = 8'h3F; 
+    8'b10001101 : sbox_out = 8'h1B; 
+    8'b10001110 : sbox_out = 8'h89; 
+    8'b10001111 : sbox_out = 8'hFF; 
+
+    8'b10010000 : sbox_out = 8'hEB; 
+    8'b10010001 : sbox_out = 8'h84; 
+    8'b10010010 : sbox_out = 8'h69; 
+    8'b10010011 : sbox_out = 8'h3A; 
+    8'b10010100 : sbox_out = 8'h9D; 
+    8'b10010101 : sbox_out = 8'hD7; 
+    8'b10010110 : sbox_out = 8'hD3; 
+    8'b10010111 : sbox_out = 8'h70; 
+    8'b10011000 : sbox_out = 8'h67; 
+    8'b10011001 : sbox_out = 8'h40; 
+    8'b10011010 : sbox_out = 8'hB5; 
+    8'b10011011 : sbox_out = 8'hDE; 
+    8'b10011100 : sbox_out = 8'h5D; 
+    8'b10011101 : sbox_out = 8'h30; 
+    8'b10011110 : sbox_out = 8'h91; 
+    8'b10011111 : sbox_out = 8'hB1; 
+
+    8'b10100000 : sbox_out = 8'h78; 
+    8'b10100001 : sbox_out = 8'h11; 
+    8'b10100010 : sbox_out = 8'h01; 
+    8'b10100011 : sbox_out = 8'hE5; 
+    8'b10100100 : sbox_out = 8'h00; 
+    8'b10100101 : sbox_out = 8'h68; 
+    8'b10100110 : sbox_out = 8'h98; 
+    8'b10100111 : sbox_out = 8'hA0; 
+    8'b10101000 : sbox_out = 8'hC5; 
+    8'b10101001 : sbox_out = 8'h02; 
+    8'b10101010 : sbox_out = 8'hA6; 
+    8'b10101011 : sbox_out = 8'h74; 
+    8'b10101100 : sbox_out = 8'h2D; 
+    8'b10101101 : sbox_out = 8'h0B; 
+    8'b10101110 : sbox_out = 8'hA2; 
+    8'b10101111 : sbox_out = 8'h76; 
+
+    8'b10110000 : sbox_out = 8'hB3; 
+    8'b10110001 : sbox_out = 8'hBE; 
+    8'b10110010 : sbox_out = 8'hCE; 
+    8'b10110011 : sbox_out = 8'hBD; 
+    8'b10110100 : sbox_out = 8'hAE; 
+    8'b10110101 : sbox_out = 8'hE9; 
+    8'b10110110 : sbox_out = 8'h8A; 
+    8'b10110111 : sbox_out = 8'h31; 
+    8'b10111000 : sbox_out = 8'h1C; 
+    8'b10111001 : sbox_out = 8'hEC; 
+    8'b10111010 : sbox_out = 8'hF1; 
+    8'b10111011 : sbox_out = 8'h99; 
+    8'b10111100 : sbox_out = 8'h94; 
+    8'b10111101 : sbox_out = 8'hAA; 
+    8'b10111110 : sbox_out = 8'hF6; 
+    8'b10111111 : sbox_out = 8'h26; 
+
+    8'b11000000 : sbox_out = 8'h2F; 
+    8'b11000001 : sbox_out = 8'hEF; 
+    8'b11000010 : sbox_out = 8'hE8; 
+    8'b11000011 : sbox_out = 8'h8C; 
+    8'b11000100 : sbox_out = 8'h35; 
+    8'b11000101 : sbox_out = 8'h03; 
+    8'b11000110 : sbox_out = 8'hD4; 
+    8'b11000111 : sbox_out = 8'h7F; 
+    8'b11001000 : sbox_out = 8'hFB; 
+    8'b11001001 : sbox_out = 8'h05; 
+    8'b11001010 : sbox_out = 8'hC1; 
+    8'b11001011 : sbox_out = 8'h5E; 
+    8'b11001100 : sbox_out = 8'h90; 
+    8'b11001101 : sbox_out = 8'h20; 
+    8'b11001110 : sbox_out = 8'h3D; 
+    8'b11001111 : sbox_out = 8'h82; 
+
+    8'b11010000 : sbox_out = 8'hF7; 
+    8'b11010001 : sbox_out = 8'hEA; 
+    8'b11010010 : sbox_out = 8'h0A; 
+    8'b11010011 : sbox_out = 8'h0D; 
+    8'b11010100 : sbox_out = 8'h7E; 
+    8'b11010101 : sbox_out = 8'hF8; 
+    8'b11010110 : sbox_out = 8'h50; 
+    8'b11010111 : sbox_out = 8'h1A; 
+    8'b11011000 : sbox_out = 8'hC4; 
+    8'b11011001 : sbox_out = 8'h07; 
+    8'b11011010 : sbox_out = 8'h57; 
+    8'b11011011 : sbox_out = 8'hB8; 
+    8'b11011100 : sbox_out = 8'h3C; 
+    8'b11011101 : sbox_out = 8'h62; 
+    8'b11011110 : sbox_out = 8'hE3; 
+    8'b11011111 : sbox_out = 8'hC8; 
+
+    8'b11100000 : sbox_out = 8'hAC; 
+    8'b11100001 : sbox_out = 8'h52; 
+    8'b11100010 : sbox_out = 8'h64; 
+    8'b11100011 : sbox_out = 8'h10; 
+    8'b11100100 : sbox_out = 8'hD0; 
+    8'b11100101 : sbox_out = 8'hD9; 
+    8'b11100110 : sbox_out = 8'h13; 
+    8'b11100111 : sbox_out = 8'h0C; 
+    8'b11101000 : sbox_out = 8'h12; 
+    8'b11101001 : sbox_out = 8'h29; 
+    8'b11101010 : sbox_out = 8'h51; 
+    8'b11101011 : sbox_out = 8'hB9; 
+    8'b11101100 : sbox_out = 8'hCF; 
+    8'b11101101 : sbox_out = 8'hD6; 
+    8'b11101110 : sbox_out = 8'h73; 
+    8'b11101111 : sbox_out = 8'h8D; 
+
+    8'b11110000 : sbox_out = 8'h81; 
+    8'b11110001 : sbox_out = 8'h54; 
+    8'b11110010 : sbox_out = 8'hC0; 
+    8'b11110011 : sbox_out = 8'hED; 
+    8'b11110100 : sbox_out = 8'h4E; 
+    8'b11110101 : sbox_out = 8'h44; 
+    8'b11110110 : sbox_out = 8'hA7; 
+    8'b11110111 : sbox_out = 8'h2A; 
+    8'b11111000 : sbox_out = 8'h85; 
+    8'b11111001 : sbox_out = 8'h25; 
+    8'b11111010 : sbox_out = 8'hE6; 
+    8'b11111011 : sbox_out = 8'hCA; 
+    8'b11111100 : sbox_out = 8'h7C; 
+    8'b11111101 : sbox_out = 8'h8B; 
+    8'b11111110 : sbox_out = 8'h56; 
+    8'b11111111 : sbox_out = 8'h80; 
+
+    default : sbox_out = 8'd0; 
+  endcase 
+end 
+
+endmodule
+
+//SBOX 0 - Alternative 6
+module kalyna_sbox_0_alt6 (sbox_in, sbox_out); 
+
+input [7:0] sbox_in; 
+output reg [7:0] sbox_out; 
+
+always @ (*) begin 
+  if (sbox_in[7:2] == 6'b000000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA8; 
+      2'b01 : sbox_out = 8'h43; 
+      2'b10 : sbox_out = 8'h5F; 
+      2'b11 : sbox_out = 8'h06; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6B; 
+      2'b01 : sbox_out = 8'h75; 
+      2'b10 : sbox_out = 8'h6C; 
+      2'b11 : sbox_out = 8'h59; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h71; 
+      2'b01 : sbox_out = 8'hDF; 
+      2'b10 : sbox_out = 8'h87; 
+      2'b11 : sbox_out = 8'h95; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h17; 
+      2'b01 : sbox_out = 8'hF0; 
+      2'b10 : sbox_out = 8'hD8; 
+      2'b11 : sbox_out = 8'h09; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6D; 
+      2'b01 : sbox_out = 8'hF3; 
+      2'b10 : sbox_out = 8'h1D; 
+      2'b11 : sbox_out = 8'hCB; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC9; 
+      2'b01 : sbox_out = 8'h4D; 
+      2'b10 : sbox_out = 8'h2C; 
+      2'b11 : sbox_out = 8'hAF; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h79; 
+      2'b01 : sbox_out = 8'hE0; 
+      2'b10 : sbox_out = 8'h97; 
+      2'b11 : sbox_out = 8'hFD; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6F; 
+      2'b01 : sbox_out = 8'h4B; 
+      2'b10 : sbox_out = 8'h45; 
+      2'b11 : sbox_out = 8'h39; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h3E; 
+      2'b01 : sbox_out = 8'hDD; 
+      2'b10 : sbox_out = 8'hA3; 
+      2'b11 : sbox_out = 8'h4F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB4; 
+      2'b01 : sbox_out = 8'hB6; 
+      2'b10 : sbox_out = 8'h9A; 
+      2'b11 : sbox_out = 8'h0E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h1F; 
+      2'b01 : sbox_out = 8'hBF; 
+      2'b10 : sbox_out = 8'h15; 
+      2'b11 : sbox_out = 8'hE1; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h49; 
+      2'b01 : sbox_out = 8'hD2; 
+      2'b10 : sbox_out = 8'h93; 
+      2'b11 : sbox_out = 8'hC6; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h92; 
+      2'b01 : sbox_out = 8'h72; 
+      2'b10 : sbox_out = 8'h9E; 
+      2'b11 : sbox_out = 8'h61; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hD1; 
+      2'b01 : sbox_out = 8'h63; 
+      2'b10 : sbox_out = 8'hFA; 
+      2'b11 : sbox_out = 8'hEE; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF4; 
+      2'b01 : sbox_out = 8'h19; 
+      2'b10 : sbox_out = 8'hD5; 
+      2'b11 : sbox_out = 8'hAD; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h58; 
+      2'b01 : sbox_out = 8'hA4; 
+      2'b10 : sbox_out = 8'hBB; 
+      2'b11 : sbox_out = 8'hA1; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hDC; 
+      2'b01 : sbox_out = 8'hF2; 
+      2'b10 : sbox_out = 8'h83; 
+      2'b11 : sbox_out = 8'h37; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h42; 
+      2'b01 : sbox_out = 8'hE4; 
+      2'b10 : sbox_out = 8'h7A; 
+      2'b11 : sbox_out = 8'h32; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h9C; 
+      2'b01 : sbox_out = 8'hCC; 
+      2'b10 : sbox_out = 8'hAB; 
+      2'b11 : sbox_out = 8'h4A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h8F; 
+      2'b01 : sbox_out = 8'h6E; 
+      2'b10 : sbox_out = 8'h04; 
+      2'b11 : sbox_out = 8'h27; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h2E; 
+      2'b01 : sbox_out = 8'hE7; 
+      2'b10 : sbox_out = 8'hE2; 
+      2'b11 : sbox_out = 8'h5A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h96; 
+      2'b01 : sbox_out = 8'h16; 
+      2'b10 : sbox_out = 8'h23; 
+      2'b11 : sbox_out = 8'h2B; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC2; 
+      2'b01 : sbox_out = 8'h65; 
+      2'b10 : sbox_out = 8'h66; 
+      2'b11 : sbox_out = 8'h0F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hBC; 
+      2'b01 : sbox_out = 8'hA9; 
+      2'b10 : sbox_out = 8'h47; 
+      2'b11 : sbox_out = 8'h41; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h34; 
+      2'b01 : sbox_out = 8'h48; 
+      2'b10 : sbox_out = 8'hFC; 
+      2'b11 : sbox_out = 8'hB7; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6A; 
+      2'b01 : sbox_out = 8'h88; 
+      2'b10 : sbox_out = 8'hA5; 
+      2'b11 : sbox_out = 8'h53; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h86; 
+      2'b01 : sbox_out = 8'hF9; 
+      2'b10 : sbox_out = 8'h5B; 
+      2'b11 : sbox_out = 8'hDB; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h38; 
+      2'b01 : sbox_out = 8'h7B; 
+      2'b10 : sbox_out = 8'hC3; 
+      2'b11 : sbox_out = 8'h1E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h22; 
+      2'b01 : sbox_out = 8'h33; 
+      2'b10 : sbox_out = 8'h24; 
+      2'b11 : sbox_out = 8'h28; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h36; 
+      2'b01 : sbox_out = 8'hC7; 
+      2'b10 : sbox_out = 8'hB2; 
+      2'b11 : sbox_out = 8'h3B; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h8E; 
+      2'b01 : sbox_out = 8'h77; 
+      2'b10 : sbox_out = 8'hBA; 
+      2'b11 : sbox_out = 8'hF5; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h14; 
+      2'b01 : sbox_out = 8'h9F; 
+      2'b10 : sbox_out = 8'h08; 
+      2'b11 : sbox_out = 8'h55; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h9B; 
+      2'b01 : sbox_out = 8'h4C; 
+      2'b10 : sbox_out = 8'hFE; 
+      2'b11 : sbox_out = 8'h60; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h5C; 
+      2'b01 : sbox_out = 8'hDA; 
+      2'b10 : sbox_out = 8'h18; 
+      2'b11 : sbox_out = 8'h46; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hCD; 
+      2'b01 : sbox_out = 8'h7D; 
+      2'b10 : sbox_out = 8'h21; 
+      2'b11 : sbox_out = 8'hB0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h3F; 
+      2'b01 : sbox_out = 8'h1B; 
+      2'b10 : sbox_out = 8'h89; 
+      2'b11 : sbox_out = 8'hFF; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hEB; 
+      2'b01 : sbox_out = 8'h84; 
+      2'b10 : sbox_out = 8'h69; 
+      2'b11 : sbox_out = 8'h3A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h9D; 
+      2'b01 : sbox_out = 8'hD7; 
+      2'b10 : sbox_out = 8'hD3; 
+      2'b11 : sbox_out = 8'h70; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h67; 
+      2'b01 : sbox_out = 8'h40; 
+      2'b10 : sbox_out = 8'hB5; 
+      2'b11 : sbox_out = 8'hDE; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h5D; 
+      2'b01 : sbox_out = 8'h30; 
+      2'b10 : sbox_out = 8'h91; 
+      2'b11 : sbox_out = 8'hB1; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h78; 
+      2'b01 : sbox_out = 8'h11; 
+      2'b10 : sbox_out = 8'h01; 
+      2'b11 : sbox_out = 8'hE5; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h00; 
+      2'b01 : sbox_out = 8'h68; 
+      2'b10 : sbox_out = 8'h98; 
+      2'b11 : sbox_out = 8'hA0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC5; 
+      2'b01 : sbox_out = 8'h02; 
+      2'b10 : sbox_out = 8'hA6; 
+      2'b11 : sbox_out = 8'h74; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h2D; 
+      2'b01 : sbox_out = 8'h0B; 
+      2'b10 : sbox_out = 8'hA2; 
+      2'b11 : sbox_out = 8'h76; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB3; 
+      2'b01 : sbox_out = 8'hBE; 
+      2'b10 : sbox_out = 8'hCE; 
+      2'b11 : sbox_out = 8'hBD; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hAE; 
+      2'b01 : sbox_out = 8'hE9; 
+      2'b10 : sbox_out = 8'h8A; 
+      2'b11 : sbox_out = 8'h31; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h1C; 
+      2'b01 : sbox_out = 8'hEC; 
+      2'b10 : sbox_out = 8'hF1; 
+      2'b11 : sbox_out = 8'h99; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h94; 
+      2'b01 : sbox_out = 8'hAA; 
+      2'b10 : sbox_out = 8'hF6; 
+      2'b11 : sbox_out = 8'h26; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h2F; 
+      2'b01 : sbox_out = 8'hEF; 
+      2'b10 : sbox_out = 8'hE8; 
+      2'b11 : sbox_out = 8'h8C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h35; 
+      2'b01 : sbox_out = 8'h03; 
+      2'b10 : sbox_out = 8'hD4; 
+      2'b11 : sbox_out = 8'h7F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hFB; 
+      2'b01 : sbox_out = 8'h05; 
+      2'b10 : sbox_out = 8'hC1; 
+      2'b11 : sbox_out = 8'h5E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h90; 
+      2'b01 : sbox_out = 8'h20; 
+      2'b10 : sbox_out = 8'h3D; 
+      2'b11 : sbox_out = 8'h82; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF7; 
+      2'b01 : sbox_out = 8'hEA; 
+      2'b10 : sbox_out = 8'h0A; 
+      2'b11 : sbox_out = 8'h0D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h7E; 
+      2'b01 : sbox_out = 8'hF8; 
+      2'b10 : sbox_out = 8'h50; 
+      2'b11 : sbox_out = 8'h1A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC4; 
+      2'b01 : sbox_out = 8'h07; 
+      2'b10 : sbox_out = 8'h57; 
+      2'b11 : sbox_out = 8'hB8; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h3C; 
+      2'b01 : sbox_out = 8'h62; 
+      2'b10 : sbox_out = 8'hE3; 
+      2'b11 : sbox_out = 8'hC8; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hAC; 
+      2'b01 : sbox_out = 8'h52; 
+      2'b10 : sbox_out = 8'h64; 
+      2'b11 : sbox_out = 8'h10; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hD0; 
+      2'b01 : sbox_out = 8'hD9; 
+      2'b10 : sbox_out = 8'h13; 
+      2'b11 : sbox_out = 8'h0C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h12; 
+      2'b01 : sbox_out = 8'h29; 
+      2'b10 : sbox_out = 8'h51; 
+      2'b11 : sbox_out = 8'hB9; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hCF; 
+      2'b01 : sbox_out = 8'hD6; 
+      2'b10 : sbox_out = 8'h73; 
+      2'b11 : sbox_out = 8'h8D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h81; 
+      2'b01 : sbox_out = 8'h54; 
+      2'b10 : sbox_out = 8'hC0; 
+      2'b11 : sbox_out = 8'hED; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h4E; 
+      2'b01 : sbox_out = 8'h44; 
+      2'b10 : sbox_out = 8'hA7; 
+      2'b11 : sbox_out = 8'h2A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h85; 
+      2'b01 : sbox_out = 8'h25; 
+      2'b10 : sbox_out = 8'hE6; 
+      2'b11 : sbox_out = 8'hCA; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h7C; 
+      2'b01 : sbox_out = 8'h8B; 
+      2'b10 : sbox_out = 8'h56; 
+      2'b11 : sbox_out = 8'h80; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else begin 
+    sbox_out = 8'd0; 
+  end
+end 
+
+endmodule 
+
+// SBOX 1
+module kalyna_sbox_1 (sbox_in, sbox_out); 
+
+input [7:0] sbox_in; 
+output reg [7:0] sbox_out; 
+
+always @ (*) begin 
+  case (sbox_in) 
+    8'b00000000 : sbox_out = 8'hCE; 
+    8'b00000001 : sbox_out = 8'hBB; 
+    8'b00000010 : sbox_out = 8'hEB; 
+    8'b00000011 : sbox_out = 8'h92; 
+    8'b00000100 : sbox_out = 8'hEA; 
+    8'b00000101 : sbox_out = 8'hCB; 
+    8'b00000110 : sbox_out = 8'h13; 
+    8'b00000111 : sbox_out = 8'hC1; 
+    8'b00001000 : sbox_out = 8'hE9; 
+    8'b00001001 : sbox_out = 8'h3A; 
+    8'b00001010 : sbox_out = 8'hD6; 
+    8'b00001011 : sbox_out = 8'hB2; 
+    8'b00001100 : sbox_out = 8'hD2; 
+    8'b00001101 : sbox_out = 8'h90; 
+    8'b00001110 : sbox_out = 8'h17; 
+    8'b00001111 : sbox_out = 8'hF8; 
+
+    8'b00010000 : sbox_out = 8'h42; 
+    8'b00010001 : sbox_out = 8'h15; 
+    8'b00010010 : sbox_out = 8'h56; 
+    8'b00010011 : sbox_out = 8'hB4; 
+    8'b00010100 : sbox_out = 8'h65; 
+    8'b00010101 : sbox_out = 8'h1C; 
+    8'b00010110 : sbox_out = 8'h88; 
+    8'b00010111 : sbox_out = 8'h43; 
+    8'b00011000 : sbox_out = 8'hC5; 
+    8'b00011001 : sbox_out = 8'h5C; 
+    8'b00011010 : sbox_out = 8'h36; 
+    8'b00011011 : sbox_out = 8'hBA; 
+    8'b00011100 : sbox_out = 8'hF5; 
+    8'b00011101 : sbox_out = 8'h57; 
+    8'b00011110 : sbox_out = 8'h67; 
+    8'b00011111 : sbox_out = 8'h8D; 
+
+    8'b00100000 : sbox_out = 8'h31; 
+    8'b00100001 : sbox_out = 8'hF6; 
+    8'b00100010 : sbox_out = 8'h64; 
+    8'b00100011 : sbox_out = 8'h58; 
+    8'b00100100 : sbox_out = 8'h9E; 
+    8'b00100101 : sbox_out = 8'hF4; 
+    8'b00100110 : sbox_out = 8'h22; 
+    8'b00100111 : sbox_out = 8'hAA; 
+    8'b00101000 : sbox_out = 8'h75; 
+    8'b00101001 : sbox_out = 8'h0F; 
+    8'b00101010 : sbox_out = 8'h02; 
+    8'b00101011 : sbox_out = 8'hB1; 
+    8'b00101100 : sbox_out = 8'hDF; 
+    8'b00101101 : sbox_out = 8'h6D; 
+    8'b00101110 : sbox_out = 8'h73; 
+    8'b00101111 : sbox_out = 8'h4D; 
+
+    8'b00110000 : sbox_out = 8'h7C; 
+    8'b00110001 : sbox_out = 8'h26; 
+    8'b00110010 : sbox_out = 8'h2E; 
+    8'b00110011 : sbox_out = 8'hF7; 
+    8'b00110100 : sbox_out = 8'h08; 
+    8'b00110101 : sbox_out = 8'h5D; 
+    8'b00110110 : sbox_out = 8'h44; 
+    8'b00110111 : sbox_out = 8'h3E; 
+    8'b00111000 : sbox_out = 8'h9F; 
+    8'b00111001 : sbox_out = 8'h14; 
+    8'b00111010 : sbox_out = 8'hC8; 
+    8'b00111011 : sbox_out = 8'hAE; 
+    8'b00111100 : sbox_out = 8'h54; 
+    8'b00111101 : sbox_out = 8'h10; 
+    8'b00111110 : sbox_out = 8'hD8; 
+    8'b00111111 : sbox_out = 8'hBC; 
+
+    8'b01000000 : sbox_out = 8'h1A; 
+    8'b01000001 : sbox_out = 8'h6B; 
+    8'b01000010 : sbox_out = 8'h69; 
+    8'b01000011 : sbox_out = 8'hF3; 
+    8'b01000100 : sbox_out = 8'hBD; 
+    8'b01000101 : sbox_out = 8'h33; 
+    8'b01000110 : sbox_out = 8'hAB; 
+    8'b01000111 : sbox_out = 8'hFA; 
+    8'b01001000 : sbox_out = 8'hD1; 
+    8'b01001001 : sbox_out = 8'h9B; 
+    8'b01001010 : sbox_out = 8'h68; 
+    8'b01001011 : sbox_out = 8'h4E; 
+    8'b01001100 : sbox_out = 8'h16; 
+    8'b01001101 : sbox_out = 8'h95; 
+    8'b01001110 : sbox_out = 8'h91; 
+    8'b01001111 : sbox_out = 8'hEE; 
+
+    8'b01010000 : sbox_out = 8'h4C; 
+    8'b01010001 : sbox_out = 8'h63; 
+    8'b01010010 : sbox_out = 8'h8E; 
+    8'b01010011 : sbox_out = 8'h5B; 
+    8'b01010100 : sbox_out = 8'hCC; 
+    8'b01010101 : sbox_out = 8'h3C; 
+    8'b01010110 : sbox_out = 8'h19; 
+    8'b01010111 : sbox_out = 8'hA1; 
+    8'b01011000 : sbox_out = 8'h81; 
+    8'b01011001 : sbox_out = 8'h49; 
+    8'b01011010 : sbox_out = 8'h7B; 
+    8'b01011011 : sbox_out = 8'hD9; 
+    8'b01011100 : sbox_out = 8'h6F; 
+    8'b01011101 : sbox_out = 8'h37; 
+    8'b01011110 : sbox_out = 8'h60; 
+    8'b01011111 : sbox_out = 8'hCA; 
+
+    8'b01100000 : sbox_out = 8'hE7; 
+    8'b01100001 : sbox_out = 8'h2B; 
+    8'b01100010 : sbox_out = 8'h48; 
+    8'b01100011 : sbox_out = 8'hFD; 
+    8'b01100100 : sbox_out = 8'h96; 
+    8'b01100101 : sbox_out = 8'h45; 
+    8'b01100110 : sbox_out = 8'hFC; 
+    8'b01100111 : sbox_out = 8'h41; 
+    8'b01101000 : sbox_out = 8'h12; 
+    8'b01101001 : sbox_out = 8'h0D; 
+    8'b01101010 : sbox_out = 8'h79; 
+    8'b01101011 : sbox_out = 8'hE5; 
+    8'b01101100 : sbox_out = 8'h89; 
+    8'b01101101 : sbox_out = 8'h8C; 
+    8'b01101110 : sbox_out = 8'hE3; 
+    8'b01101111 : sbox_out = 8'h20; 
+
+    8'b01110000 : sbox_out = 8'h30; 
+    8'b01110001 : sbox_out = 8'hDC; 
+    8'b01110010 : sbox_out = 8'hB7; 
+    8'b01110011 : sbox_out = 8'h6C; 
+    8'b01110100 : sbox_out = 8'h4A; 
+    8'b01110101 : sbox_out = 8'hB5; 
+    8'b01110110 : sbox_out = 8'h3F; 
+    8'b01110111 : sbox_out = 8'h97; 
+    8'b01111000 : sbox_out = 8'hD4; 
+    8'b01111001 : sbox_out = 8'h62; 
+    8'b01111010 : sbox_out = 8'h2D; 
+    8'b01111011 : sbox_out = 8'h06; 
+    8'b01111100 : sbox_out = 8'hA4; 
+    8'b01111101 : sbox_out = 8'hA5; 
+    8'b01111110 : sbox_out = 8'h83; 
+    8'b01111111 : sbox_out = 8'h5F; 
+
+    8'b10000000 : sbox_out = 8'h2A; 
+    8'b10000001 : sbox_out = 8'hDA; 
+    8'b10000010 : sbox_out = 8'hC9; 
+    8'b10000011 : sbox_out = 8'h00; 
+    8'b10000100 : sbox_out = 8'h7E; 
+    8'b10000101 : sbox_out = 8'hA2; 
+    8'b10000110 : sbox_out = 8'h55; 
+    8'b10000111 : sbox_out = 8'hBF; 
+    8'b10001000 : sbox_out = 8'h11; 
+    8'b10001001 : sbox_out = 8'hD5; 
+    8'b10001010 : sbox_out = 8'h9C; 
+    8'b10001011 : sbox_out = 8'hCF; 
+    8'b10001100 : sbox_out = 8'h0E; 
+    8'b10001101 : sbox_out = 8'h0A; 
+    8'b10001110 : sbox_out = 8'h3D; 
+    8'b10001111 : sbox_out = 8'h51; 
+
+    8'b10010000 : sbox_out = 8'h7D; 
+    8'b10010001 : sbox_out = 8'h93; 
+    8'b10010010 : sbox_out = 8'h1B; 
+    8'b10010011 : sbox_out = 8'hFE; 
+    8'b10010100 : sbox_out = 8'hC4; 
+    8'b10010101 : sbox_out = 8'h47; 
+    8'b10010110 : sbox_out = 8'h09; 
+    8'b10010111 : sbox_out = 8'h86; 
+    8'b10011000 : sbox_out = 8'h0B; 
+    8'b10011001 : sbox_out = 8'h8F; 
+    8'b10011010 : sbox_out = 8'h9D; 
+    8'b10011011 : sbox_out = 8'h6A; 
+    8'b10011100 : sbox_out = 8'h07; 
+    8'b10011101 : sbox_out = 8'hB9; 
+    8'b10011110 : sbox_out = 8'hB0; 
+    8'b10011111 : sbox_out = 8'h98; 
+
+    8'b10100000 : sbox_out = 8'h18; 
+    8'b10100001 : sbox_out = 8'h32; 
+    8'b10100010 : sbox_out = 8'h71; 
+    8'b10100011 : sbox_out = 8'h4B; 
+    8'b10100100 : sbox_out = 8'hEF; 
+    8'b10100101 : sbox_out = 8'h3B; 
+    8'b10100110 : sbox_out = 8'h70; 
+    8'b10100111 : sbox_out = 8'hA0; 
+    8'b10101000 : sbox_out = 8'hE4; 
+    8'b10101001 : sbox_out = 8'h40; 
+    8'b10101010 : sbox_out = 8'hFF; 
+    8'b10101011 : sbox_out = 8'hC3; 
+    8'b10101100 : sbox_out = 8'hA9; 
+    8'b10101101 : sbox_out = 8'hE6; 
+    8'b10101110 : sbox_out = 8'h78; 
+    8'b10101111 : sbox_out = 8'hF9; 
+
+    8'b10110000 : sbox_out = 8'h8B; 
+    8'b10110001 : sbox_out = 8'h46; 
+    8'b10110010 : sbox_out = 8'h80; 
+    8'b10110011 : sbox_out = 8'h1E; 
+    8'b10110100 : sbox_out = 8'h38; 
+    8'b10110101 : sbox_out = 8'hE1; 
+    8'b10110110 : sbox_out = 8'hB8; 
+    8'b10110111 : sbox_out = 8'hA8; 
+    8'b10111000 : sbox_out = 8'hE0; 
+    8'b10111001 : sbox_out = 8'h0C; 
+    8'b10111010 : sbox_out = 8'h23; 
+    8'b10111011 : sbox_out = 8'h76; 
+    8'b10111100 : sbox_out = 8'h1D; 
+    8'b10111101 : sbox_out = 8'h25; 
+    8'b10111110 : sbox_out = 8'h24; 
+    8'b10111111 : sbox_out = 8'h05; 
+
+    8'b11000000 : sbox_out = 8'hF1; 
+    8'b11000001 : sbox_out = 8'h6E; 
+    8'b11000010 : sbox_out = 8'h94; 
+    8'b11000011 : sbox_out = 8'h28; 
+    8'b11000100 : sbox_out = 8'h9A; 
+    8'b11000101 : sbox_out = 8'h84; 
+    8'b11000110 : sbox_out = 8'hE8; 
+    8'b11000111 : sbox_out = 8'hA3; 
+    8'b11001000 : sbox_out = 8'h4F; 
+    8'b11001001 : sbox_out = 8'h77; 
+    8'b11001010 : sbox_out = 8'hD3; 
+    8'b11001011 : sbox_out = 8'h85; 
+    8'b11001100 : sbox_out = 8'hE2; 
+    8'b11001101 : sbox_out = 8'h52; 
+    8'b11001110 : sbox_out = 8'hF2; 
+    8'b11001111 : sbox_out = 8'h82; 
+
+    8'b11010000 : sbox_out = 8'h50; 
+    8'b11010001 : sbox_out = 8'h7A; 
+    8'b11010010 : sbox_out = 8'h2F; 
+    8'b11010011 : sbox_out = 8'h74; 
+    8'b11010100 : sbox_out = 8'h53; 
+    8'b11010101 : sbox_out = 8'hB3; 
+    8'b11010110 : sbox_out = 8'h61; 
+    8'b11010111 : sbox_out = 8'hAF; 
+    8'b11011000 : sbox_out = 8'h39; 
+    8'b11011001 : sbox_out = 8'h35; 
+    8'b11011010 : sbox_out = 8'hDE; 
+    8'b11011011 : sbox_out = 8'hCD; 
+    8'b11011100 : sbox_out = 8'h1F; 
+    8'b11011101 : sbox_out = 8'h99; 
+    8'b11011110 : sbox_out = 8'hAC; 
+    8'b11011111 : sbox_out = 8'hAD; 
+
+    8'b11100000 : sbox_out = 8'h72; 
+    8'b11100001 : sbox_out = 8'h2C; 
+    8'b11100010 : sbox_out = 8'hDD; 
+    8'b11100011 : sbox_out = 8'hD0; 
+    8'b11100100 : sbox_out = 8'h87; 
+    8'b11100101 : sbox_out = 8'hBE; 
+    8'b11100110 : sbox_out = 8'h5E; 
+    8'b11100111 : sbox_out = 8'hA6; 
+    8'b11101000 : sbox_out = 8'hEC; 
+    8'b11101001 : sbox_out = 8'h04; 
+    8'b11101010 : sbox_out = 8'hC6; 
+    8'b11101011 : sbox_out = 8'h03; 
+    8'b11101100 : sbox_out = 8'h34; 
+    8'b11101101 : sbox_out = 8'hFB; 
+    8'b11101110 : sbox_out = 8'hDB; 
+    8'b11101111 : sbox_out = 8'h59; 
+
+    8'b11110000 : sbox_out = 8'hB6; 
+    8'b11110001 : sbox_out = 8'hC2; 
+    8'b11110010 : sbox_out = 8'h01; 
+    8'b11110011 : sbox_out = 8'hF0; 
+    8'b11110100 : sbox_out = 8'h5A; 
+    8'b11110101 : sbox_out = 8'hED; 
+    8'b11110110 : sbox_out = 8'hA7; 
+    8'b11110111 : sbox_out = 8'h66; 
+    8'b11111000 : sbox_out = 8'h21; 
+    8'b11111001 : sbox_out = 8'h7F; 
+    8'b11111010 : sbox_out = 8'h8A; 
+    8'b11111011 : sbox_out = 8'h27; 
+    8'b11111100 : sbox_out = 8'hC7; 
+    8'b11111101 : sbox_out = 8'hC0; 
+    8'b11111110 : sbox_out = 8'h29; 
+    8'b11111111 : sbox_out = 8'hD7; 
+
+    default : sbox_out = 8'd0; 
+  endcase 
+end 
+
+endmodule 
+
+//SBOX 1 - Alternative 6
+module kalyna_sbox_1_alt6 (sbox_in, sbox_out); 
+
+input [7:0] sbox_in; 
+output reg [7:0] sbox_out; 
+
+always @ (*) begin 
+  if (sbox_in[7:2] == 6'b000000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hCE; 
+      2'b01 : sbox_out = 8'hBB; 
+      2'b10 : sbox_out = 8'hEB; 
+      2'b11 : sbox_out = 8'h92; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hEA; 
+      2'b01 : sbox_out = 8'hCB; 
+      2'b10 : sbox_out = 8'h13; 
+      2'b11 : sbox_out = 8'hC1; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE9; 
+      2'b01 : sbox_out = 8'h3A; 
+      2'b10 : sbox_out = 8'hD6; 
+      2'b11 : sbox_out = 8'hB2; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hD2; 
+      2'b01 : sbox_out = 8'h90; 
+      2'b10 : sbox_out = 8'h17; 
+      2'b11 : sbox_out = 8'hF8; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h42; 
+      2'b01 : sbox_out = 8'h15; 
+      2'b10 : sbox_out = 8'h56; 
+      2'b11 : sbox_out = 8'hB4; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h65; 
+      2'b01 : sbox_out = 8'h1C; 
+      2'b10 : sbox_out = 8'h88; 
+      2'b11 : sbox_out = 8'h43; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC5; 
+      2'b01 : sbox_out = 8'h5C; 
+      2'b10 : sbox_out = 8'h36; 
+      2'b11 : sbox_out = 8'hBA; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF5; 
+      2'b01 : sbox_out = 8'h57; 
+      2'b10 : sbox_out = 8'h67; 
+      2'b11 : sbox_out = 8'h8D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h31; 
+      2'b01 : sbox_out = 8'hF6; 
+      2'b10 : sbox_out = 8'h64; 
+      2'b11 : sbox_out = 8'h58; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h9E; 
+      2'b01 : sbox_out = 8'hF4; 
+      2'b10 : sbox_out = 8'h22; 
+      2'b11 : sbox_out = 8'hAA; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h75; 
+      2'b01 : sbox_out = 8'h0F; 
+      2'b10 : sbox_out = 8'h02; 
+      2'b11 : sbox_out = 8'hB1; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hDF; 
+      2'b01 : sbox_out = 8'h6D; 
+      2'b10 : sbox_out = 8'h73; 
+      2'b11 : sbox_out = 8'h4D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h7C; 
+      2'b01 : sbox_out = 8'h26; 
+      2'b10 : sbox_out = 8'h2E; 
+      2'b11 : sbox_out = 8'hF7; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h08; 
+      2'b01 : sbox_out = 8'h5D; 
+      2'b10 : sbox_out = 8'h44; 
+      2'b11 : sbox_out = 8'h3E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h9F; 
+      2'b01 : sbox_out = 8'h14; 
+      2'b10 : sbox_out = 8'hC8; 
+      2'b11 : sbox_out = 8'hAE; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h54; 
+      2'b01 : sbox_out = 8'h10; 
+      2'b10 : sbox_out = 8'hD8; 
+      2'b11 : sbox_out = 8'hBC; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h1A; 
+      2'b01 : sbox_out = 8'h6B; 
+      2'b10 : sbox_out = 8'h69; 
+      2'b11 : sbox_out = 8'hF3; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hBD; 
+      2'b01 : sbox_out = 8'h33; 
+      2'b10 : sbox_out = 8'hAB; 
+      2'b11 : sbox_out = 8'hFA; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hD1; 
+      2'b01 : sbox_out = 8'h9B; 
+      2'b10 : sbox_out = 8'h68; 
+      2'b11 : sbox_out = 8'h4E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h16; 
+      2'b01 : sbox_out = 8'h95; 
+      2'b10 : sbox_out = 8'h91; 
+      2'b11 : sbox_out = 8'hEE; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h4C; 
+      2'b01 : sbox_out = 8'h63; 
+      2'b10 : sbox_out = 8'h8E; 
+      2'b11 : sbox_out = 8'h5B; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hCC; 
+      2'b01 : sbox_out = 8'h3C; 
+      2'b10 : sbox_out = 8'h19; 
+      2'b11 : sbox_out = 8'hA1; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h81; 
+      2'b01 : sbox_out = 8'h49; 
+      2'b10 : sbox_out = 8'h7B; 
+      2'b11 : sbox_out = 8'hD9; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6F; 
+      2'b01 : sbox_out = 8'h37; 
+      2'b10 : sbox_out = 8'h60; 
+      2'b11 : sbox_out = 8'hCA; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE7; 
+      2'b01 : sbox_out = 8'h2B; 
+      2'b10 : sbox_out = 8'h48; 
+      2'b11 : sbox_out = 8'hFD; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h96; 
+      2'b01 : sbox_out = 8'h45; 
+      2'b10 : sbox_out = 8'hFC; 
+      2'b11 : sbox_out = 8'h41; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h12; 
+      2'b01 : sbox_out = 8'h0D; 
+      2'b10 : sbox_out = 8'h79; 
+      2'b11 : sbox_out = 8'hE5; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h89; 
+      2'b01 : sbox_out = 8'h8C; 
+      2'b10 : sbox_out = 8'hE3; 
+      2'b11 : sbox_out = 8'h20; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h30; 
+      2'b01 : sbox_out = 8'hDC; 
+      2'b10 : sbox_out = 8'hB7; 
+      2'b11 : sbox_out = 8'h6C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h4A; 
+      2'b01 : sbox_out = 8'hB5; 
+      2'b10 : sbox_out = 8'h3F; 
+      2'b11 : sbox_out = 8'h97; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hD4; 
+      2'b01 : sbox_out = 8'h62; 
+      2'b10 : sbox_out = 8'h2D; 
+      2'b11 : sbox_out = 8'h06; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA4; 
+      2'b01 : sbox_out = 8'hA5; 
+      2'b10 : sbox_out = 8'h83; 
+      2'b11 : sbox_out = 8'h5F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h2A; 
+      2'b01 : sbox_out = 8'hDA; 
+      2'b10 : sbox_out = 8'hC9; 
+      2'b11 : sbox_out = 8'h00; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h7E; 
+      2'b01 : sbox_out = 8'hA2; 
+      2'b10 : sbox_out = 8'h55; 
+      2'b11 : sbox_out = 8'hBF; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h11; 
+      2'b01 : sbox_out = 8'hD5; 
+      2'b10 : sbox_out = 8'h9C; 
+      2'b11 : sbox_out = 8'hCF; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h0E; 
+      2'b01 : sbox_out = 8'h0A; 
+      2'b10 : sbox_out = 8'h3D; 
+      2'b11 : sbox_out = 8'h51; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h7D; 
+      2'b01 : sbox_out = 8'h93; 
+      2'b10 : sbox_out = 8'h1B; 
+      2'b11 : sbox_out = 8'hFE; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC4; 
+      2'b01 : sbox_out = 8'h47; 
+      2'b10 : sbox_out = 8'h09; 
+      2'b11 : sbox_out = 8'h86; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h0B; 
+      2'b01 : sbox_out = 8'h8F; 
+      2'b10 : sbox_out = 8'h9D; 
+      2'b11 : sbox_out = 8'h6A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h07; 
+      2'b01 : sbox_out = 8'hB9; 
+      2'b10 : sbox_out = 8'hB0; 
+      2'b11 : sbox_out = 8'h98; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h18; 
+      2'b01 : sbox_out = 8'h32; 
+      2'b10 : sbox_out = 8'h71; 
+      2'b11 : sbox_out = 8'h4B; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hEF; 
+      2'b01 : sbox_out = 8'h3B; 
+      2'b10 : sbox_out = 8'h70; 
+      2'b11 : sbox_out = 8'hA0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE4; 
+      2'b01 : sbox_out = 8'h40; 
+      2'b10 : sbox_out = 8'hFF; 
+      2'b11 : sbox_out = 8'hC3; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA9; 
+      2'b01 : sbox_out = 8'hE6; 
+      2'b10 : sbox_out = 8'h78; 
+      2'b11 : sbox_out = 8'hF9; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h8B; 
+      2'b01 : sbox_out = 8'h46; 
+      2'b10 : sbox_out = 8'h80; 
+      2'b11 : sbox_out = 8'h1E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h38; 
+      2'b01 : sbox_out = 8'hE1; 
+      2'b10 : sbox_out = 8'hB8; 
+      2'b11 : sbox_out = 8'hA8; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE0; 
+      2'b01 : sbox_out = 8'h0C; 
+      2'b10 : sbox_out = 8'h23; 
+      2'b11 : sbox_out = 8'h76; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h1D; 
+      2'b01 : sbox_out = 8'h25; 
+      2'b10 : sbox_out = 8'h24; 
+      2'b11 : sbox_out = 8'h05; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF1; 
+      2'b01 : sbox_out = 8'h6E; 
+      2'b10 : sbox_out = 8'h94; 
+      2'b11 : sbox_out = 8'h28; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h9A; 
+      2'b01 : sbox_out = 8'h84; 
+      2'b10 : sbox_out = 8'hE8; 
+      2'b11 : sbox_out = 8'hA3; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h4F; 
+      2'b01 : sbox_out = 8'h77; 
+      2'b10 : sbox_out = 8'hD3; 
+      2'b11 : sbox_out = 8'h85; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE2; 
+      2'b01 : sbox_out = 8'h52; 
+      2'b10 : sbox_out = 8'hF2; 
+      2'b11 : sbox_out = 8'h82; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h50; 
+      2'b01 : sbox_out = 8'h7A; 
+      2'b10 : sbox_out = 8'h2F; 
+      2'b11 : sbox_out = 8'h74; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h53; 
+      2'b01 : sbox_out = 8'hB3; 
+      2'b10 : sbox_out = 8'h61; 
+      2'b11 : sbox_out = 8'hAF; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h39; 
+      2'b01 : sbox_out = 8'h35; 
+      2'b10 : sbox_out = 8'hDE; 
+      2'b11 : sbox_out = 8'hCD; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h1F; 
+      2'b01 : sbox_out = 8'h99; 
+      2'b10 : sbox_out = 8'hAC; 
+      2'b11 : sbox_out = 8'hAD; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h72; 
+      2'b01 : sbox_out = 8'h2C; 
+      2'b10 : sbox_out = 8'hDD; 
+      2'b11 : sbox_out = 8'hD0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h87; 
+      2'b01 : sbox_out = 8'hBE; 
+      2'b10 : sbox_out = 8'h5E; 
+      2'b11 : sbox_out = 8'hA6; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hEC; 
+      2'b01 : sbox_out = 8'h04; 
+      2'b10 : sbox_out = 8'hC6; 
+      2'b11 : sbox_out = 8'h03; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h34; 
+      2'b01 : sbox_out = 8'hFB; 
+      2'b10 : sbox_out = 8'hDB; 
+      2'b11 : sbox_out = 8'h59; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB6; 
+      2'b01 : sbox_out = 8'hC2; 
+      2'b10 : sbox_out = 8'h01; 
+      2'b11 : sbox_out = 8'hF0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h5A; 
+      2'b01 : sbox_out = 8'hED; 
+      2'b10 : sbox_out = 8'hA7; 
+      2'b11 : sbox_out = 8'h66; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h21; 
+      2'b01 : sbox_out = 8'h7F; 
+      2'b10 : sbox_out = 8'h8A; 
+      2'b11 : sbox_out = 8'h27; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC7; 
+      2'b01 : sbox_out = 8'hC0; 
+      2'b10 : sbox_out = 8'h29; 
+      2'b11 : sbox_out = 8'hD7; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else begin 
+    sbox_out = 8'd0; 
+  end
+end 
+
+endmodule 
+
+//SBOX 2
+module kalyna_sbox_2 (sbox_in, sbox_out); 
+
+input [7:0] sbox_in; 
+output reg [7:0] sbox_out; 
+
+always @ (*) begin 
+  case (sbox_in) 
+    8'b00000000 : sbox_out = 8'h93; 
+    8'b00000001 : sbox_out = 8'hD9; 
+    8'b00000010 : sbox_out = 8'h9A; 
+    8'b00000011 : sbox_out = 8'hB5; 
+    8'b00000100 : sbox_out = 8'h98; 
+    8'b00000101 : sbox_out = 8'h22; 
+    8'b00000110 : sbox_out = 8'h45; 
+    8'b00000111 : sbox_out = 8'hFC; 
+    8'b00001000 : sbox_out = 8'hBA; 
+    8'b00001001 : sbox_out = 8'h6A; 
+    8'b00001010 : sbox_out = 8'hDF; 
+    8'b00001011 : sbox_out = 8'h02; 
+    8'b00001100 : sbox_out = 8'h9F; 
+    8'b00001101 : sbox_out = 8'hDC; 
+    8'b00001110 : sbox_out = 8'h51; 
+    8'b00001111 : sbox_out = 8'h59; 
+
+    8'b00010000 : sbox_out = 8'h4A; 
+    8'b00010001 : sbox_out = 8'h17; 
+    8'b00010010 : sbox_out = 8'h2B; 
+    8'b00010011 : sbox_out = 8'hC2; 
+    8'b00010100 : sbox_out = 8'h94; 
+    8'b00010101 : sbox_out = 8'hF4; 
+    8'b00010110 : sbox_out = 8'hBB; 
+    8'b00010111 : sbox_out = 8'hA3; 
+    8'b00011000 : sbox_out = 8'h62; 
+    8'b00011001 : sbox_out = 8'hE4; 
+    8'b00011010 : sbox_out = 8'h71; 
+    8'b00011011 : sbox_out = 8'hD4; 
+    8'b00011100 : sbox_out = 8'hCD; 
+    8'b00011101 : sbox_out = 8'h70; 
+    8'b00011110 : sbox_out = 8'h16; 
+    8'b00011111 : sbox_out = 8'hE1; 
+
+    8'b00100000 : sbox_out = 8'h49; 
+    8'b00100001 : sbox_out = 8'h3C; 
+    8'b00100010 : sbox_out = 8'hC0; 
+    8'b00100011 : sbox_out = 8'hD8; 
+    8'b00100100 : sbox_out = 8'h5C; 
+    8'b00100101 : sbox_out = 8'h9B; 
+    8'b00100110 : sbox_out = 8'hAD; 
+    8'b00100111 : sbox_out = 8'h85; 
+    8'b00101000 : sbox_out = 8'h53; 
+    8'b00101001 : sbox_out = 8'hA1; 
+    8'b00101010 : sbox_out = 8'h7A; 
+    8'b00101011 : sbox_out = 8'hC8; 
+    8'b00101100 : sbox_out = 8'h2D; 
+    8'b00101101 : sbox_out = 8'hE0; 
+    8'b00101110 : sbox_out = 8'hD1; 
+    8'b00101111 : sbox_out = 8'h72; 
+
+    8'b00110000 : sbox_out = 8'hA6; 
+    8'b00110001 : sbox_out = 8'h2C; 
+    8'b00110010 : sbox_out = 8'hC4; 
+    8'b00110011 : sbox_out = 8'hE3; 
+    8'b00110100 : sbox_out = 8'h76; 
+    8'b00110101 : sbox_out = 8'h78; 
+    8'b00110110 : sbox_out = 8'hB7; 
+    8'b00110111 : sbox_out = 8'hB4; 
+    8'b00111000 : sbox_out = 8'h09; 
+    8'b00111001 : sbox_out = 8'h3B; 
+    8'b00111010 : sbox_out = 8'h0E; 
+    8'b00111011 : sbox_out = 8'h41; 
+    8'b00111100 : sbox_out = 8'h4C; 
+    8'b00111101 : sbox_out = 8'hDE; 
+    8'b00111110 : sbox_out = 8'hB2; 
+    8'b00111111 : sbox_out = 8'h90; 
+
+    8'b01000000 : sbox_out = 8'h25; 
+    8'b01000001 : sbox_out = 8'hA5; 
+    8'b01000010 : sbox_out = 8'hD7; 
+    8'b01000011 : sbox_out = 8'h03; 
+    8'b01000100 : sbox_out = 8'h11; 
+    8'b01000101 : sbox_out = 8'h00; 
+    8'b01000110 : sbox_out = 8'hC3; 
+    8'b01000111 : sbox_out = 8'h2E; 
+    8'b01001000 : sbox_out = 8'h92; 
+    8'b01001001 : sbox_out = 8'hEF; 
+    8'b01001010 : sbox_out = 8'h4E; 
+    8'b01001011 : sbox_out = 8'h12; 
+    8'b01001100 : sbox_out = 8'h9D; 
+    8'b01001101 : sbox_out = 8'h7D; 
+    8'b01001110 : sbox_out = 8'hCB; 
+    8'b01001111 : sbox_out = 8'h35; 
+
+    8'b01010000 : sbox_out = 8'h10; 
+    8'b01010001 : sbox_out = 8'hD5; 
+    8'b01010010 : sbox_out = 8'h4F; 
+    8'b01010011 : sbox_out = 8'h9E; 
+    8'b01010100 : sbox_out = 8'h4D; 
+    8'b01010101 : sbox_out = 8'hA9; 
+    8'b01010110 : sbox_out = 8'h55; 
+    8'b01010111 : sbox_out = 8'hC6; 
+    8'b01011000 : sbox_out = 8'hD0; 
+    8'b01011001 : sbox_out = 8'h7B; 
+    8'b01011010 : sbox_out = 8'h18; 
+    8'b01011011 : sbox_out = 8'h97; 
+    8'b01011100 : sbox_out = 8'hD3; 
+    8'b01011101 : sbox_out = 8'h36; 
+    8'b01011110 : sbox_out = 8'hE6; 
+    8'b01011111 : sbox_out = 8'h48; 
+
+    8'b01100000 : sbox_out = 8'h56; 
+    8'b01100001 : sbox_out = 8'h81; 
+    8'b01100010 : sbox_out = 8'h8F; 
+    8'b01100011 : sbox_out = 8'h77; 
+    8'b01100100 : sbox_out = 8'hCC; 
+    8'b01100101 : sbox_out = 8'h9C; 
+    8'b01100110 : sbox_out = 8'hB9; 
+    8'b01100111 : sbox_out = 8'hE2; 
+    8'b01101000 : sbox_out = 8'hAC; 
+    8'b01101001 : sbox_out = 8'hB8; 
+    8'b01101010 : sbox_out = 8'h2F; 
+    8'b01101011 : sbox_out = 8'h15; 
+    8'b01101100 : sbox_out = 8'hA4; 
+    8'b01101101 : sbox_out = 8'h7C; 
+    8'b01101110 : sbox_out = 8'hDA; 
+    8'b01101111 : sbox_out = 8'h38; 
+
+    8'b01110000 : sbox_out = 8'h1E; 
+    8'b01110001 : sbox_out = 8'h0B; 
+    8'b01110010 : sbox_out = 8'h05; 
+    8'b01110011 : sbox_out = 8'hD6; 
+    8'b01110100 : sbox_out = 8'h14; 
+    8'b01110101 : sbox_out = 8'h6E; 
+    8'b01110110 : sbox_out = 8'h6C; 
+    8'b01110111 : sbox_out = 8'h7E; 
+    8'b01111000 : sbox_out = 8'h66; 
+    8'b01111001 : sbox_out = 8'hFD; 
+    8'b01111010 : sbox_out = 8'hB1; 
+    8'b01111011 : sbox_out = 8'hE5; 
+    8'b01111100 : sbox_out = 8'h60; 
+    8'b01111101 : sbox_out = 8'hAF; 
+    8'b01111110 : sbox_out = 8'h5E; 
+    8'b01111111 : sbox_out = 8'h33; 
+
+    8'b10000000 : sbox_out = 8'h87; 
+    8'b10000001 : sbox_out = 8'hC9; 
+    8'b10000010 : sbox_out = 8'hF0; 
+    8'b10000011 : sbox_out = 8'h5D; 
+    8'b10000100 : sbox_out = 8'h6D; 
+    8'b10000101 : sbox_out = 8'h3F; 
+    8'b10000110 : sbox_out = 8'h88; 
+    8'b10000111 : sbox_out = 8'h8D; 
+    8'b10001000 : sbox_out = 8'hC7; 
+    8'b10001001 : sbox_out = 8'hF7; 
+    8'b10001010 : sbox_out = 8'h1D; 
+    8'b10001011 : sbox_out = 8'hE9; 
+    8'b10001100 : sbox_out = 8'hEC; 
+    8'b10001101 : sbox_out = 8'hED; 
+    8'b10001110 : sbox_out = 8'h80; 
+    8'b10001111 : sbox_out = 8'h29; 
+
+    8'b10010000 : sbox_out = 8'h27; 
+    8'b10010001 : sbox_out = 8'hCF; 
+    8'b10010010 : sbox_out = 8'h99; 
+    8'b10010011 : sbox_out = 8'hA8; 
+    8'b10010100 : sbox_out = 8'h50; 
+    8'b10010101 : sbox_out = 8'h0F; 
+    8'b10010110 : sbox_out = 8'h37; 
+    8'b10010111 : sbox_out = 8'h24; 
+    8'b10011000 : sbox_out = 8'h28; 
+    8'b10011001 : sbox_out = 8'h30; 
+    8'b10011010 : sbox_out = 8'h95; 
+    8'b10011011 : sbox_out = 8'hD2; 
+    8'b10011100 : sbox_out = 8'h3E; 
+    8'b10011101 : sbox_out = 8'h5B; 
+    8'b10011110 : sbox_out = 8'h40; 
+    8'b10011111 : sbox_out = 8'h83; 
+
+    8'b10100000 : sbox_out = 8'hB3; 
+    8'b10100001 : sbox_out = 8'h69; 
+    8'b10100010 : sbox_out = 8'h57; 
+    8'b10100011 : sbox_out = 8'h1F; 
+    8'b10100100 : sbox_out = 8'h07; 
+    8'b10100101 : sbox_out = 8'h1C; 
+    8'b10100110 : sbox_out = 8'h8A; 
+    8'b10100111 : sbox_out = 8'hBC; 
+    8'b10101000 : sbox_out = 8'h20; 
+    8'b10101001 : sbox_out = 8'hEB; 
+    8'b10101010 : sbox_out = 8'hCE; 
+    8'b10101011 : sbox_out = 8'h8E; 
+    8'b10101100 : sbox_out = 8'hAB; 
+    8'b10101101 : sbox_out = 8'hEE; 
+    8'b10101110 : sbox_out = 8'h31; 
+    8'b10101111 : sbox_out = 8'hA2; 
+
+    8'b10110000 : sbox_out = 8'h73; 
+    8'b10110001 : sbox_out = 8'hF9; 
+    8'b10110010 : sbox_out = 8'hCA; 
+    8'b10110011 : sbox_out = 8'h3A; 
+    8'b10110100 : sbox_out = 8'h1A; 
+    8'b10110101 : sbox_out = 8'hFB; 
+    8'b10110110 : sbox_out = 8'h0D; 
+    8'b10110111 : sbox_out = 8'hC1; 
+    8'b10111000 : sbox_out = 8'hFE; 
+    8'b10111001 : sbox_out = 8'hFA; 
+    8'b10111010 : sbox_out = 8'hF2; 
+    8'b10111011 : sbox_out = 8'h6F; 
+    8'b10111100 : sbox_out = 8'hBD; 
+    8'b10111101 : sbox_out = 8'h96; 
+    8'b10111110 : sbox_out = 8'hDD; 
+    8'b10111111 : sbox_out = 8'h43; 
+
+    8'b11000000 : sbox_out = 8'h52; 
+    8'b11000001 : sbox_out = 8'hB6; 
+    8'b11000010 : sbox_out = 8'h08; 
+    8'b11000011 : sbox_out = 8'hF3; 
+    8'b11000100 : sbox_out = 8'hAE; 
+    8'b11000101 : sbox_out = 8'hBE; 
+    8'b11000110 : sbox_out = 8'h19; 
+    8'b11000111 : sbox_out = 8'h89; 
+    8'b11001000 : sbox_out = 8'h32; 
+    8'b11001001 : sbox_out = 8'h26; 
+    8'b11001010 : sbox_out = 8'hB0; 
+    8'b11001011 : sbox_out = 8'hEA; 
+    8'b11001100 : sbox_out = 8'h4B; 
+    8'b11001101 : sbox_out = 8'h64; 
+    8'b11001110 : sbox_out = 8'h84; 
+    8'b11001111 : sbox_out = 8'h82; 
+
+    8'b11010000 : sbox_out = 8'h6B; 
+    8'b11010001 : sbox_out = 8'hF5; 
+    8'b11010010 : sbox_out = 8'h79; 
+    8'b11010011 : sbox_out = 8'hBF; 
+    8'b11010100 : sbox_out = 8'h01; 
+    8'b11010101 : sbox_out = 8'h5F; 
+    8'b11010110 : sbox_out = 8'h75; 
+    8'b11010111 : sbox_out = 8'h63; 
+    8'b11011000 : sbox_out = 8'h1B; 
+    8'b11011001 : sbox_out = 8'h23; 
+    8'b11011010 : sbox_out = 8'h3D; 
+    8'b11011011 : sbox_out = 8'h68; 
+    8'b11011100 : sbox_out = 8'h2A; 
+    8'b11011101 : sbox_out = 8'h65; 
+    8'b11011110 : sbox_out = 8'hE8; 
+    8'b11011111 : sbox_out = 8'h91; 
+
+    8'b11100000 : sbox_out = 8'hF6; 
+    8'b11100001 : sbox_out = 8'hFF; 
+    8'b11100010 : sbox_out = 8'h13; 
+    8'b11100011 : sbox_out = 8'h58; 
+    8'b11100100 : sbox_out = 8'hF1; 
+    8'b11100101 : sbox_out = 8'h47; 
+    8'b11100110 : sbox_out = 8'h0A; 
+    8'b11100111 : sbox_out = 8'h7F; 
+    8'b11101000 : sbox_out = 8'hC5; 
+    8'b11101001 : sbox_out = 8'hA7; 
+    8'b11101010 : sbox_out = 8'hE7; 
+    8'b11101011 : sbox_out = 8'h61; 
+    8'b11101100 : sbox_out = 8'h5A; 
+    8'b11101101 : sbox_out = 8'h06; 
+    8'b11101110 : sbox_out = 8'h46; 
+    8'b11101111 : sbox_out = 8'h44; 
+
+    8'b11110000 : sbox_out = 8'h42; 
+    8'b11110001 : sbox_out = 8'h04; 
+    8'b11110010 : sbox_out = 8'hA0; 
+    8'b11110011 : sbox_out = 8'hDB; 
+    8'b11110100 : sbox_out = 8'h39; 
+    8'b11110101 : sbox_out = 8'h86; 
+    8'b11110110 : sbox_out = 8'h54; 
+    8'b11110111 : sbox_out = 8'hAA; 
+    8'b11111000 : sbox_out = 8'h8C; 
+    8'b11111001 : sbox_out = 8'h34; 
+    8'b11111010 : sbox_out = 8'h21; 
+    8'b11111011 : sbox_out = 8'h8B; 
+    8'b11111100 : sbox_out = 8'hF8; 
+    8'b11111101 : sbox_out = 8'h0C; 
+    8'b11111110 : sbox_out = 8'h74; 
+    8'b11111111 : sbox_out = 8'h67; 
+
+    default : sbox_out = 8'd0; 
+  endcase 
+end 
+
+endmodule 
+
+//SBOX 2 - Alternative 6 
+module kalyna_sbox_2_alt6 (sbox_in, sbox_out); 
+
+input [7:0] sbox_in; 
+output reg [7:0] sbox_out; 
+
+always @ (*) begin 
+  if (sbox_in[7:2] == 6'b000000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h93; 
+      2'b01 : sbox_out = 8'hD9; 
+      2'b10 : sbox_out = 8'h9A; 
+      2'b11 : sbox_out = 8'hB5; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h98; 
+      2'b01 : sbox_out = 8'h22; 
+      2'b10 : sbox_out = 8'h45; 
+      2'b11 : sbox_out = 8'hFC; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hBA; 
+      2'b01 : sbox_out = 8'h6A; 
+      2'b10 : sbox_out = 8'hDF; 
+      2'b11 : sbox_out = 8'h02; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h9F; 
+      2'b01 : sbox_out = 8'hDC; 
+      2'b10 : sbox_out = 8'h51; 
+      2'b11 : sbox_out = 8'h59; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h4A; 
+      2'b01 : sbox_out = 8'h17; 
+      2'b10 : sbox_out = 8'h2B; 
+      2'b11 : sbox_out = 8'hC2; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h94; 
+      2'b01 : sbox_out = 8'hF4; 
+      2'b10 : sbox_out = 8'hBB; 
+      2'b11 : sbox_out = 8'hA3; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h62; 
+      2'b01 : sbox_out = 8'hE4; 
+      2'b10 : sbox_out = 8'h71; 
+      2'b11 : sbox_out = 8'hD4; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hCD; 
+      2'b01 : sbox_out = 8'h70; 
+      2'b10 : sbox_out = 8'h16; 
+      2'b11 : sbox_out = 8'hE1; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h49; 
+      2'b01 : sbox_out = 8'h3C; 
+      2'b10 : sbox_out = 8'hC0; 
+      2'b11 : sbox_out = 8'hD8; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h5C; 
+      2'b01 : sbox_out = 8'h9B; 
+      2'b10 : sbox_out = 8'hAD; 
+      2'b11 : sbox_out = 8'h85; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h53; 
+      2'b01 : sbox_out = 8'hA1; 
+      2'b10 : sbox_out = 8'h7A; 
+      2'b11 : sbox_out = 8'hC8; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h2D; 
+      2'b01 : sbox_out = 8'hE0; 
+      2'b10 : sbox_out = 8'hD1; 
+      2'b11 : sbox_out = 8'h72; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA6; 
+      2'b01 : sbox_out = 8'h2C; 
+      2'b10 : sbox_out = 8'hC4; 
+      2'b11 : sbox_out = 8'hE3; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h76; 
+      2'b01 : sbox_out = 8'h78; 
+      2'b10 : sbox_out = 8'hB7; 
+      2'b11 : sbox_out = 8'hB4; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h09; 
+      2'b01 : sbox_out = 8'h3B; 
+      2'b10 : sbox_out = 8'h0E; 
+      2'b11 : sbox_out = 8'h41; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h4C; 
+      2'b01 : sbox_out = 8'hDE; 
+      2'b10 : sbox_out = 8'hB2; 
+      2'b11 : sbox_out = 8'h90; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h25; 
+      2'b01 : sbox_out = 8'hA5; 
+      2'b10 : sbox_out = 8'hD7; 
+      2'b11 : sbox_out = 8'h03; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h11; 
+      2'b01 : sbox_out = 8'h00; 
+      2'b10 : sbox_out = 8'hC3; 
+      2'b11 : sbox_out = 8'h2E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h92; 
+      2'b01 : sbox_out = 8'hEF; 
+      2'b10 : sbox_out = 8'h4E; 
+      2'b11 : sbox_out = 8'h12; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h9D; 
+      2'b01 : sbox_out = 8'h7D; 
+      2'b10 : sbox_out = 8'hCB; 
+      2'b11 : sbox_out = 8'h35; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h10; 
+      2'b01 : sbox_out = 8'hD5; 
+      2'b10 : sbox_out = 8'h4F; 
+      2'b11 : sbox_out = 8'h9E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h4D; 
+      2'b01 : sbox_out = 8'hA9; 
+      2'b10 : sbox_out = 8'h55; 
+      2'b11 : sbox_out = 8'hC6; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hD0; 
+      2'b01 : sbox_out = 8'h7B; 
+      2'b10 : sbox_out = 8'h18; 
+      2'b11 : sbox_out = 8'h97; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hD3; 
+      2'b01 : sbox_out = 8'h36; 
+      2'b10 : sbox_out = 8'hE6; 
+      2'b11 : sbox_out = 8'h48; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h56; 
+      2'b01 : sbox_out = 8'h81; 
+      2'b10 : sbox_out = 8'h8F; 
+      2'b11 : sbox_out = 8'h77; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hCC; 
+      2'b01 : sbox_out = 8'h9C; 
+      2'b10 : sbox_out = 8'hB9; 
+      2'b11 : sbox_out = 8'hE2; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hAC; 
+      2'b01 : sbox_out = 8'hB8; 
+      2'b10 : sbox_out = 8'h2F; 
+      2'b11 : sbox_out = 8'h15; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA4; 
+      2'b01 : sbox_out = 8'h7C; 
+      2'b10 : sbox_out = 8'hDA; 
+      2'b11 : sbox_out = 8'h38; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h1E; 
+      2'b01 : sbox_out = 8'h0B; 
+      2'b10 : sbox_out = 8'h05; 
+      2'b11 : sbox_out = 8'hD6; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h14; 
+      2'b01 : sbox_out = 8'h6E; 
+      2'b10 : sbox_out = 8'h6C; 
+      2'b11 : sbox_out = 8'h7E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h66; 
+      2'b01 : sbox_out = 8'hFD; 
+      2'b10 : sbox_out = 8'hB1; 
+      2'b11 : sbox_out = 8'hE5; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h60; 
+      2'b01 : sbox_out = 8'hAF; 
+      2'b10 : sbox_out = 8'h5E; 
+      2'b11 : sbox_out = 8'h33; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h87; 
+      2'b01 : sbox_out = 8'hC9; 
+      2'b10 : sbox_out = 8'hF0; 
+      2'b11 : sbox_out = 8'h5D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6D; 
+      2'b01 : sbox_out = 8'h3F; 
+      2'b10 : sbox_out = 8'h88; 
+      2'b11 : sbox_out = 8'h8D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC7; 
+      2'b01 : sbox_out = 8'hF7; 
+      2'b10 : sbox_out = 8'h1D; 
+      2'b11 : sbox_out = 8'hE9; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hEC; 
+      2'b01 : sbox_out = 8'hED; 
+      2'b10 : sbox_out = 8'h80; 
+      2'b11 : sbox_out = 8'h29; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h27; 
+      2'b01 : sbox_out = 8'hCF; 
+      2'b10 : sbox_out = 8'h99; 
+      2'b11 : sbox_out = 8'hA8; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h50; 
+      2'b01 : sbox_out = 8'h0F; 
+      2'b10 : sbox_out = 8'h37; 
+      2'b11 : sbox_out = 8'h24; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h28; 
+      2'b01 : sbox_out = 8'h30; 
+      2'b10 : sbox_out = 8'h95; 
+      2'b11 : sbox_out = 8'hD2; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h3E; 
+      2'b01 : sbox_out = 8'h5B; 
+      2'b10 : sbox_out = 8'h40; 
+      2'b11 : sbox_out = 8'h83; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB3; 
+      2'b01 : sbox_out = 8'h69; 
+      2'b10 : sbox_out = 8'h57; 
+      2'b11 : sbox_out = 8'h1F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h07; 
+      2'b01 : sbox_out = 8'h1C; 
+      2'b10 : sbox_out = 8'h8A; 
+      2'b11 : sbox_out = 8'hBC; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h20; 
+      2'b01 : sbox_out = 8'hEB; 
+      2'b10 : sbox_out = 8'hCE; 
+      2'b11 : sbox_out = 8'h8E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hAB; 
+      2'b01 : sbox_out = 8'hEE; 
+      2'b10 : sbox_out = 8'h31; 
+      2'b11 : sbox_out = 8'hA2; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h73; 
+      2'b01 : sbox_out = 8'hF9; 
+      2'b10 : sbox_out = 8'hCA; 
+      2'b11 : sbox_out = 8'h3A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h1A; 
+      2'b01 : sbox_out = 8'hFB; 
+      2'b10 : sbox_out = 8'h0D; 
+      2'b11 : sbox_out = 8'hC1; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hFE; 
+      2'b01 : sbox_out = 8'hFA; 
+      2'b10 : sbox_out = 8'hF2; 
+      2'b11 : sbox_out = 8'h6F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hBD; 
+      2'b01 : sbox_out = 8'h96; 
+      2'b10 : sbox_out = 8'hDD; 
+      2'b11 : sbox_out = 8'h43; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h52; 
+      2'b01 : sbox_out = 8'hB6; 
+      2'b10 : sbox_out = 8'h08; 
+      2'b11 : sbox_out = 8'hF3; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hAE; 
+      2'b01 : sbox_out = 8'hBE; 
+      2'b10 : sbox_out = 8'h19; 
+      2'b11 : sbox_out = 8'h89; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h32; 
+      2'b01 : sbox_out = 8'h26; 
+      2'b10 : sbox_out = 8'hB0; 
+      2'b11 : sbox_out = 8'hEA; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h4B; 
+      2'b01 : sbox_out = 8'h64; 
+      2'b10 : sbox_out = 8'h84; 
+      2'b11 : sbox_out = 8'h82; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6B; 
+      2'b01 : sbox_out = 8'hF5; 
+      2'b10 : sbox_out = 8'h79; 
+      2'b11 : sbox_out = 8'hBF; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h01; 
+      2'b01 : sbox_out = 8'h5F; 
+      2'b10 : sbox_out = 8'h75; 
+      2'b11 : sbox_out = 8'h63; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h1B; 
+      2'b01 : sbox_out = 8'h23; 
+      2'b10 : sbox_out = 8'h3D; 
+      2'b11 : sbox_out = 8'h68; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h2A; 
+      2'b01 : sbox_out = 8'h65; 
+      2'b10 : sbox_out = 8'hE8; 
+      2'b11 : sbox_out = 8'h91; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF6; 
+      2'b01 : sbox_out = 8'hFF; 
+      2'b10 : sbox_out = 8'h13; 
+      2'b11 : sbox_out = 8'h58; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF1; 
+      2'b01 : sbox_out = 8'h47; 
+      2'b10 : sbox_out = 8'h0A; 
+      2'b11 : sbox_out = 8'h7F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC5; 
+      2'b01 : sbox_out = 8'hA7; 
+      2'b10 : sbox_out = 8'hE7; 
+      2'b11 : sbox_out = 8'h61; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h5A; 
+      2'b01 : sbox_out = 8'h06; 
+      2'b10 : sbox_out = 8'h46; 
+      2'b11 : sbox_out = 8'h44; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h42; 
+      2'b01 : sbox_out = 8'h04; 
+      2'b10 : sbox_out = 8'hA0; 
+      2'b11 : sbox_out = 8'hDB; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h39; 
+      2'b01 : sbox_out = 8'h86; 
+      2'b10 : sbox_out = 8'h54; 
+      2'b11 : sbox_out = 8'hAA; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h8C; 
+      2'b01 : sbox_out = 8'h34; 
+      2'b10 : sbox_out = 8'h21; 
+      2'b11 : sbox_out = 8'h8B; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF8; 
+      2'b01 : sbox_out = 8'h0C; 
+      2'b10 : sbox_out = 8'h74; 
+      2'b11 : sbox_out = 8'h67; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else begin 
+    sbox_out = 8'd0; 
+  end
+end 
+
+endmodule 
+
+//SBOX 3
+module kalyna_sbox_3 (sbox_in, sbox_out); 
+
+input [7:0] sbox_in; 
+output reg [7:0] sbox_out; 
+
+always @ (*) begin 
+  case (sbox_in) 
+    8'b00000000 : sbox_out = 8'h68; 
+    8'b00000001 : sbox_out = 8'h8D; 
+    8'b00000010 : sbox_out = 8'hCA; 
+    8'b00000011 : sbox_out = 8'h4D; 
+    8'b00000100 : sbox_out = 8'h73; 
+    8'b00000101 : sbox_out = 8'h4B; 
+    8'b00000110 : sbox_out = 8'h4E; 
+    8'b00000111 : sbox_out = 8'h2A; 
+    8'b00001000 : sbox_out = 8'hD4; 
+    8'b00001001 : sbox_out = 8'h52; 
+    8'b00001010 : sbox_out = 8'h26; 
+    8'b00001011 : sbox_out = 8'hB3; 
+    8'b00001100 : sbox_out = 8'h54; 
+    8'b00001101 : sbox_out = 8'h1E; 
+    8'b00001110 : sbox_out = 8'h19; 
+    8'b00001111 : sbox_out = 8'h1F; 
+
+    8'b00010000 : sbox_out = 8'h22; 
+    8'b00010001 : sbox_out = 8'h03; 
+    8'b00010010 : sbox_out = 8'h46; 
+    8'b00010011 : sbox_out = 8'h3D; 
+    8'b00010100 : sbox_out = 8'h2D; 
+    8'b00010101 : sbox_out = 8'h4A; 
+    8'b00010110 : sbox_out = 8'h53; 
+    8'b00010111 : sbox_out = 8'h83; 
+    8'b00011000 : sbox_out = 8'h13; 
+    8'b00011001 : sbox_out = 8'h8A; 
+    8'b00011010 : sbox_out = 8'hB7; 
+    8'b00011011 : sbox_out = 8'hD5; 
+    8'b00011100 : sbox_out = 8'h25; 
+    8'b00011101 : sbox_out = 8'h79; 
+    8'b00011110 : sbox_out = 8'hF5; 
+    8'b00011111 : sbox_out = 8'hBD; 
+
+    8'b00100000 : sbox_out = 8'h58; 
+    8'b00100001 : sbox_out = 8'h2F; 
+    8'b00100010 : sbox_out = 8'h0D; 
+    8'b00100011 : sbox_out = 8'h02; 
+    8'b00100100 : sbox_out = 8'hED; 
+    8'b00100101 : sbox_out = 8'h51; 
+    8'b00100110 : sbox_out = 8'h9E; 
+    8'b00100111 : sbox_out = 8'h11; 
+    8'b00101000 : sbox_out = 8'hF2; 
+    8'b00101001 : sbox_out = 8'h3E; 
+    8'b00101010 : sbox_out = 8'h55; 
+    8'b00101011 : sbox_out = 8'h5E; 
+    8'b00101100 : sbox_out = 8'hD1; 
+    8'b00101101 : sbox_out = 8'h16; 
+    8'b00101110 : sbox_out = 8'h3C; 
+    8'b00101111 : sbox_out = 8'h66; 
+
+    8'b00110000 : sbox_out = 8'h70; 
+    8'b00110001 : sbox_out = 8'h5D; 
+    8'b00110010 : sbox_out = 8'hF3; 
+    8'b00110011 : sbox_out = 8'h45; 
+    8'b00110100 : sbox_out = 8'h40; 
+    8'b00110101 : sbox_out = 8'hCC; 
+    8'b00110110 : sbox_out = 8'hE8; 
+    8'b00110111 : sbox_out = 8'h94; 
+    8'b00111000 : sbox_out = 8'h56; 
+    8'b00111001 : sbox_out = 8'h08; 
+    8'b00111010 : sbox_out = 8'hCE; 
+    8'b00111011 : sbox_out = 8'h1A; 
+    8'b00111100 : sbox_out = 8'h3A; 
+    8'b00111101 : sbox_out = 8'hD2; 
+    8'b00111110 : sbox_out = 8'hE1; 
+    8'b00111111 : sbox_out = 8'hDF; 
+
+    8'b01000000 : sbox_out = 8'hB5; 
+    8'b01000001 : sbox_out = 8'h38; 
+    8'b01000010 : sbox_out = 8'h6E; 
+    8'b01000011 : sbox_out = 8'h0E; 
+    8'b01000100 : sbox_out = 8'hE5; 
+    8'b01000101 : sbox_out = 8'hF4; 
+    8'b01000110 : sbox_out = 8'hF9; 
+    8'b01000111 : sbox_out = 8'h86; 
+    8'b01001000 : sbox_out = 8'hE9; 
+    8'b01001001 : sbox_out = 8'h4F; 
+    8'b01001010 : sbox_out = 8'hD6; 
+    8'b01001011 : sbox_out = 8'h85; 
+    8'b01001100 : sbox_out = 8'h23; 
+    8'b01001101 : sbox_out = 8'hCF; 
+    8'b01001110 : sbox_out = 8'h32; 
+    8'b01001111 : sbox_out = 8'h99; 
+
+    8'b01010000 : sbox_out = 8'h31; 
+    8'b01010001 : sbox_out = 8'h14; 
+    8'b01010010 : sbox_out = 8'hAE; 
+    8'b01010011 : sbox_out = 8'hEE; 
+    8'b01010100 : sbox_out = 8'hC8; 
+    8'b01010101 : sbox_out = 8'h48; 
+    8'b01010110 : sbox_out = 8'hD3; 
+    8'b01010111 : sbox_out = 8'h30; 
+    8'b01011000 : sbox_out = 8'hA1; 
+    8'b01011001 : sbox_out = 8'h92; 
+    8'b01011010 : sbox_out = 8'h41; 
+    8'b01011011 : sbox_out = 8'hB1; 
+    8'b01011100 : sbox_out = 8'h18; 
+    8'b01011101 : sbox_out = 8'hC4; 
+    8'b01011110 : sbox_out = 8'h2C; 
+    8'b01011111 : sbox_out = 8'h71; 
+
+    8'b01100000 : sbox_out = 8'h72; 
+    8'b01100001 : sbox_out = 8'h44; 
+    8'b01100010 : sbox_out = 8'h15; 
+    8'b01100011 : sbox_out = 8'hFD; 
+    8'b01100100 : sbox_out = 8'h37; 
+    8'b01100101 : sbox_out = 8'hBE; 
+    8'b01100110 : sbox_out = 8'h5F; 
+    8'b01100111 : sbox_out = 8'hAA; 
+    8'b01101000 : sbox_out = 8'h9B; 
+    8'b01101001 : sbox_out = 8'h88; 
+    8'b01101010 : sbox_out = 8'hD8; 
+    8'b01101011 : sbox_out = 8'hAB; 
+    8'b01101100 : sbox_out = 8'h89; 
+    8'b01101101 : sbox_out = 8'h9C; 
+    8'b01101110 : sbox_out = 8'hFA; 
+    8'b01101111 : sbox_out = 8'h60; 
+
+    8'b01110000 : sbox_out = 8'hEA; 
+    8'b01110001 : sbox_out = 8'hBC; 
+    8'b01110010 : sbox_out = 8'h62; 
+    8'b01110011 : sbox_out = 8'h0C; 
+    8'b01110100 : sbox_out = 8'h24; 
+    8'b01110101 : sbox_out = 8'hA6; 
+    8'b01110110 : sbox_out = 8'hA8; 
+    8'b01110111 : sbox_out = 8'hEC; 
+    8'b01111000 : sbox_out = 8'h67; 
+    8'b01111001 : sbox_out = 8'h20; 
+    8'b01111010 : sbox_out = 8'hDB; 
+    8'b01111011 : sbox_out = 8'h7C; 
+    8'b01111100 : sbox_out = 8'h28; 
+    8'b01111101 : sbox_out = 8'hDD; 
+    8'b01111110 : sbox_out = 8'hAC; 
+    8'b01111111 : sbox_out = 8'h5B; 
+
+    8'b10000000 : sbox_out = 8'h34; 
+    8'b10000001 : sbox_out = 8'h7E; 
+    8'b10000010 : sbox_out = 8'h10; 
+    8'b10000011 : sbox_out = 8'hF1; 
+    8'b10000100 : sbox_out = 8'h7B; 
+    8'b10000101 : sbox_out = 8'h8F; 
+    8'b10000110 : sbox_out = 8'h63; 
+    8'b10000111 : sbox_out = 8'hA0; 
+    8'b10001000 : sbox_out = 8'h05; 
+    8'b10001001 : sbox_out = 8'h9A; 
+    8'b10001010 : sbox_out = 8'h43; 
+    8'b10001011 : sbox_out = 8'h77; 
+    8'b10001100 : sbox_out = 8'h21; 
+    8'b10001101 : sbox_out = 8'hBF; 
+    8'b10001110 : sbox_out = 8'h27; 
+    8'b10001111 : sbox_out = 8'h09; 
+
+    8'b10010000 : sbox_out = 8'hC3; 
+    8'b10010001 : sbox_out = 8'h9F; 
+    8'b10010010 : sbox_out = 8'hB6; 
+    8'b10010011 : sbox_out = 8'hD7; 
+    8'b10010100 : sbox_out = 8'h29; 
+    8'b10010101 : sbox_out = 8'hC2; 
+    8'b10010110 : sbox_out = 8'hEB; 
+    8'b10010111 : sbox_out = 8'hC0; 
+    8'b10011000 : sbox_out = 8'hA4; 
+    8'b10011001 : sbox_out = 8'h8B; 
+    8'b10011010 : sbox_out = 8'h8C; 
+    8'b10011011 : sbox_out = 8'h1D; 
+    8'b10011100 : sbox_out = 8'hFB; 
+    8'b10011101 : sbox_out = 8'hFF; 
+    8'b10011110 : sbox_out = 8'hC1; 
+    8'b10011111 : sbox_out = 8'hB2; 
+
+    8'b10100000 : sbox_out = 8'h97; 
+    8'b10100001 : sbox_out = 8'h2E; 
+    8'b10100010 : sbox_out = 8'hF8; 
+    8'b10100011 : sbox_out = 8'h65; 
+    8'b10100100 : sbox_out = 8'hF6; 
+    8'b10100101 : sbox_out = 8'h75; 
+    8'b10100110 : sbox_out = 8'h07; 
+    8'b10100111 : sbox_out = 8'h04; 
+    8'b10101000 : sbox_out = 8'h49; 
+    8'b10101001 : sbox_out = 8'h33; 
+    8'b10101010 : sbox_out = 8'hE4; 
+    8'b10101011 : sbox_out = 8'hD9; 
+    8'b10101100 : sbox_out = 8'hB9; 
+    8'b10101101 : sbox_out = 8'hD0; 
+    8'b10101110 : sbox_out = 8'h42; 
+    8'b10101111 : sbox_out = 8'hC7; 
+
+    8'b10110000 : sbox_out = 8'h6C; 
+    8'b10110001 : sbox_out = 8'h90; 
+    8'b10110010 : sbox_out = 8'h00; 
+    8'b10110011 : sbox_out = 8'h8E; 
+    8'b10110100 : sbox_out = 8'h6F; 
+    8'b10110101 : sbox_out = 8'h50; 
+    8'b10110110 : sbox_out = 8'h01; 
+    8'b10110111 : sbox_out = 8'hC5; 
+    8'b10111000 : sbox_out = 8'hDA; 
+    8'b10111001 : sbox_out = 8'h47; 
+    8'b10111010 : sbox_out = 8'h3F; 
+    8'b10111011 : sbox_out = 8'hCD; 
+    8'b10111100 : sbox_out = 8'h69; 
+    8'b10111101 : sbox_out = 8'hA2; 
+    8'b10111110 : sbox_out = 8'hE2; 
+    8'b10111111 : sbox_out = 8'h7A; 
+
+    8'b11000000 : sbox_out = 8'hA7; 
+    8'b11000001 : sbox_out = 8'hC6; 
+    8'b11000010 : sbox_out = 8'h93; 
+    8'b11000011 : sbox_out = 8'h0F; 
+    8'b11000100 : sbox_out = 8'h0A; 
+    8'b11000101 : sbox_out = 8'h06; 
+    8'b11000110 : sbox_out = 8'hE6; 
+    8'b11000111 : sbox_out = 8'h2B; 
+    8'b11001000 : sbox_out = 8'h96; 
+    8'b11001001 : sbox_out = 8'hA3; 
+    8'b11001010 : sbox_out = 8'h1C; 
+    8'b11001011 : sbox_out = 8'hAF; 
+    8'b11001100 : sbox_out = 8'h6A; 
+    8'b11001101 : sbox_out = 8'h12; 
+    8'b11001110 : sbox_out = 8'h84; 
+    8'b11001111 : sbox_out = 8'h39; 
+
+    8'b11010000 : sbox_out = 8'hE7; 
+    8'b11010001 : sbox_out = 8'hB0; 
+    8'b11010010 : sbox_out = 8'h82; 
+    8'b11010011 : sbox_out = 8'hF7; 
+    8'b11010100 : sbox_out = 8'hFE; 
+    8'b11010101 : sbox_out = 8'h9D; 
+    8'b11010110 : sbox_out = 8'h87; 
+    8'b11010111 : sbox_out = 8'h5C; 
+    8'b11011000 : sbox_out = 8'h81; 
+    8'b11011001 : sbox_out = 8'h35; 
+    8'b11011010 : sbox_out = 8'hDE; 
+    8'b11011011 : sbox_out = 8'hB4; 
+    8'b11011100 : sbox_out = 8'hA5; 
+    8'b11011101 : sbox_out = 8'hFC; 
+    8'b11011110 : sbox_out = 8'h80; 
+    8'b11011111 : sbox_out = 8'hEF; 
+
+    8'b11100000 : sbox_out = 8'hCB; 
+    8'b11100001 : sbox_out = 8'hBB; 
+    8'b11100010 : sbox_out = 8'h6B; 
+    8'b11100011 : sbox_out = 8'h76; 
+    8'b11100100 : sbox_out = 8'hBA; 
+    8'b11100101 : sbox_out = 8'h5A; 
+    8'b11100110 : sbox_out = 8'h7D; 
+    8'b11100111 : sbox_out = 8'h78; 
+    8'b11101000 : sbox_out = 8'h0B; 
+    8'b11101001 : sbox_out = 8'h95; 
+    8'b11101010 : sbox_out = 8'hE3; 
+    8'b11101011 : sbox_out = 8'hAD; 
+    8'b11101100 : sbox_out = 8'h74; 
+    8'b11101101 : sbox_out = 8'h98; 
+    8'b11101110 : sbox_out = 8'h3B; 
+    8'b11101111 : sbox_out = 8'h36; 
+
+    8'b11110000 : sbox_out = 8'h64; 
+    8'b11110001 : sbox_out = 8'h6D; 
+    8'b11110010 : sbox_out = 8'hDC; 
+    8'b11110011 : sbox_out = 8'hF0; 
+    8'b11110100 : sbox_out = 8'h59; 
+    8'b11110101 : sbox_out = 8'hA9; 
+    8'b11110110 : sbox_out = 8'h4C; 
+    8'b11110111 : sbox_out = 8'h17; 
+    8'b11111000 : sbox_out = 8'h7F; 
+    8'b11111001 : sbox_out = 8'h91; 
+    8'b11111010 : sbox_out = 8'hB8; 
+    8'b11111011 : sbox_out = 8'hC9; 
+    8'b11111100 : sbox_out = 8'h57; 
+    8'b11111101 : sbox_out = 8'h1B; 
+    8'b11111110 : sbox_out = 8'hE0; 
+    8'b11111111 : sbox_out = 8'h61; 
+
+    default : sbox_out = 8'd0; 
+  endcase 
+end 
+
+endmodule 
+
+//SBOX 3 - Alternative 6
+module kalyna_sbox_3_alt6 (sbox_in, sbox_out); 
+
+input [7:0] sbox_in; 
+output reg [7:0] sbox_out; 
+
+always @ (*) begin 
+  if (sbox_in[7:2] == 6'b000000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h68; 
+      2'b01 : sbox_out = 8'h8D; 
+      2'b10 : sbox_out = 8'hCA; 
+      2'b11 : sbox_out = 8'h4D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h73; 
+      2'b01 : sbox_out = 8'h4B; 
+      2'b10 : sbox_out = 8'h4E; 
+      2'b11 : sbox_out = 8'h2A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hD4; 
+      2'b01 : sbox_out = 8'h52; 
+      2'b10 : sbox_out = 8'h26; 
+      2'b11 : sbox_out = 8'hB3; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h54; 
+      2'b01 : sbox_out = 8'h1E; 
+      2'b10 : sbox_out = 8'h19; 
+      2'b11 : sbox_out = 8'h1F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h22; 
+      2'b01 : sbox_out = 8'h03; 
+      2'b10 : sbox_out = 8'h46; 
+      2'b11 : sbox_out = 8'h3D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h2D; 
+      2'b01 : sbox_out = 8'h4A; 
+      2'b10 : sbox_out = 8'h53; 
+      2'b11 : sbox_out = 8'h83; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h13; 
+      2'b01 : sbox_out = 8'h8A; 
+      2'b10 : sbox_out = 8'hB7; 
+      2'b11 : sbox_out = 8'hD5; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h25; 
+      2'b01 : sbox_out = 8'h79; 
+      2'b10 : sbox_out = 8'hF5; 
+      2'b11 : sbox_out = 8'hBD; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h58; 
+      2'b01 : sbox_out = 8'h2F; 
+      2'b10 : sbox_out = 8'h0D; 
+      2'b11 : sbox_out = 8'h02; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hED; 
+      2'b01 : sbox_out = 8'h51; 
+      2'b10 : sbox_out = 8'h9E; 
+      2'b11 : sbox_out = 8'h11; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF2; 
+      2'b01 : sbox_out = 8'h3E; 
+      2'b10 : sbox_out = 8'h55; 
+      2'b11 : sbox_out = 8'h5E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hD1; 
+      2'b01 : sbox_out = 8'h16; 
+      2'b10 : sbox_out = 8'h3C; 
+      2'b11 : sbox_out = 8'h66; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h70; 
+      2'b01 : sbox_out = 8'h5D; 
+      2'b10 : sbox_out = 8'hF3; 
+      2'b11 : sbox_out = 8'h45; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h40; 
+      2'b01 : sbox_out = 8'hCC; 
+      2'b10 : sbox_out = 8'hE8; 
+      2'b11 : sbox_out = 8'h94; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h56; 
+      2'b01 : sbox_out = 8'h08; 
+      2'b10 : sbox_out = 8'hCE; 
+      2'b11 : sbox_out = 8'h1A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h3A; 
+      2'b01 : sbox_out = 8'hD2; 
+      2'b10 : sbox_out = 8'hE1; 
+      2'b11 : sbox_out = 8'hDF; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB5; 
+      2'b01 : sbox_out = 8'h38; 
+      2'b10 : sbox_out = 8'h6E; 
+      2'b11 : sbox_out = 8'h0E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE5; 
+      2'b01 : sbox_out = 8'hF4; 
+      2'b10 : sbox_out = 8'hF9; 
+      2'b11 : sbox_out = 8'h86; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE9; 
+      2'b01 : sbox_out = 8'h4F; 
+      2'b10 : sbox_out = 8'hD6; 
+      2'b11 : sbox_out = 8'h85; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h23; 
+      2'b01 : sbox_out = 8'hCF; 
+      2'b10 : sbox_out = 8'h32; 
+      2'b11 : sbox_out = 8'h99; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h31; 
+      2'b01 : sbox_out = 8'h14; 
+      2'b10 : sbox_out = 8'hAE; 
+      2'b11 : sbox_out = 8'hEE; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC8; 
+      2'b01 : sbox_out = 8'h48; 
+      2'b10 : sbox_out = 8'hD3; 
+      2'b11 : sbox_out = 8'h30; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA1; 
+      2'b01 : sbox_out = 8'h92; 
+      2'b10 : sbox_out = 8'h41; 
+      2'b11 : sbox_out = 8'hB1; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h18; 
+      2'b01 : sbox_out = 8'hC4; 
+      2'b10 : sbox_out = 8'h2C; 
+      2'b11 : sbox_out = 8'h71; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h72; 
+      2'b01 : sbox_out = 8'h44; 
+      2'b10 : sbox_out = 8'h15; 
+      2'b11 : sbox_out = 8'hFD; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h37; 
+      2'b01 : sbox_out = 8'hBE; 
+      2'b10 : sbox_out = 8'h5F; 
+      2'b11 : sbox_out = 8'hAA; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h9B; 
+      2'b01 : sbox_out = 8'h88; 
+      2'b10 : sbox_out = 8'hD8; 
+      2'b11 : sbox_out = 8'hAB; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h89; 
+      2'b01 : sbox_out = 8'h9C; 
+      2'b10 : sbox_out = 8'hFA; 
+      2'b11 : sbox_out = 8'h60; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hEA; 
+      2'b01 : sbox_out = 8'hBC; 
+      2'b10 : sbox_out = 8'h62; 
+      2'b11 : sbox_out = 8'h0C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h24; 
+      2'b01 : sbox_out = 8'hA6; 
+      2'b10 : sbox_out = 8'hA8; 
+      2'b11 : sbox_out = 8'hEC; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h67; 
+      2'b01 : sbox_out = 8'h20; 
+      2'b10 : sbox_out = 8'hDB; 
+      2'b11 : sbox_out = 8'h7C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h28; 
+      2'b01 : sbox_out = 8'hDD; 
+      2'b10 : sbox_out = 8'hAC; 
+      2'b11 : sbox_out = 8'h5B; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h34; 
+      2'b01 : sbox_out = 8'h7E; 
+      2'b10 : sbox_out = 8'h10; 
+      2'b11 : sbox_out = 8'hF1; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h7B; 
+      2'b01 : sbox_out = 8'h8F; 
+      2'b10 : sbox_out = 8'h63; 
+      2'b11 : sbox_out = 8'hA0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h05; 
+      2'b01 : sbox_out = 8'h9A; 
+      2'b10 : sbox_out = 8'h43; 
+      2'b11 : sbox_out = 8'h77; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h21; 
+      2'b01 : sbox_out = 8'hBF; 
+      2'b10 : sbox_out = 8'h27; 
+      2'b11 : sbox_out = 8'h09; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC3; 
+      2'b01 : sbox_out = 8'h9F; 
+      2'b10 : sbox_out = 8'hB6; 
+      2'b11 : sbox_out = 8'hD7; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h29; 
+      2'b01 : sbox_out = 8'hC2; 
+      2'b10 : sbox_out = 8'hEB; 
+      2'b11 : sbox_out = 8'hC0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA4; 
+      2'b01 : sbox_out = 8'h8B; 
+      2'b10 : sbox_out = 8'h8C; 
+      2'b11 : sbox_out = 8'h1D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hFB; 
+      2'b01 : sbox_out = 8'hFF; 
+      2'b10 : sbox_out = 8'hC1; 
+      2'b11 : sbox_out = 8'hB2; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h97; 
+      2'b01 : sbox_out = 8'h2E; 
+      2'b10 : sbox_out = 8'hF8; 
+      2'b11 : sbox_out = 8'h65; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF6; 
+      2'b01 : sbox_out = 8'h75; 
+      2'b10 : sbox_out = 8'h07; 
+      2'b11 : sbox_out = 8'h04; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h49; 
+      2'b01 : sbox_out = 8'h33; 
+      2'b10 : sbox_out = 8'hE4; 
+      2'b11 : sbox_out = 8'hD9; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB9; 
+      2'b01 : sbox_out = 8'hD0; 
+      2'b10 : sbox_out = 8'h42; 
+      2'b11 : sbox_out = 8'hC7; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6C; 
+      2'b01 : sbox_out = 8'h90; 
+      2'b10 : sbox_out = 8'h00; 
+      2'b11 : sbox_out = 8'h8E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6F; 
+      2'b01 : sbox_out = 8'h50; 
+      2'b10 : sbox_out = 8'h01; 
+      2'b11 : sbox_out = 8'hC5; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hDA; 
+      2'b01 : sbox_out = 8'h47; 
+      2'b10 : sbox_out = 8'h3F; 
+      2'b11 : sbox_out = 8'hCD; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h69; 
+      2'b01 : sbox_out = 8'hA2; 
+      2'b10 : sbox_out = 8'hE2; 
+      2'b11 : sbox_out = 8'h7A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA7; 
+      2'b01 : sbox_out = 8'hC6; 
+      2'b10 : sbox_out = 8'h93; 
+      2'b11 : sbox_out = 8'h0F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h0A; 
+      2'b01 : sbox_out = 8'h06; 
+      2'b10 : sbox_out = 8'hE6; 
+      2'b11 : sbox_out = 8'h2B; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h96; 
+      2'b01 : sbox_out = 8'hA3; 
+      2'b10 : sbox_out = 8'h1C; 
+      2'b11 : sbox_out = 8'hAF; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6A; 
+      2'b01 : sbox_out = 8'h12; 
+      2'b10 : sbox_out = 8'h84; 
+      2'b11 : sbox_out = 8'h39; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE7; 
+      2'b01 : sbox_out = 8'hB0; 
+      2'b10 : sbox_out = 8'h82; 
+      2'b11 : sbox_out = 8'hF7; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hFE; 
+      2'b01 : sbox_out = 8'h9D; 
+      2'b10 : sbox_out = 8'h87; 
+      2'b11 : sbox_out = 8'h5C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h81; 
+      2'b01 : sbox_out = 8'h35; 
+      2'b10 : sbox_out = 8'hDE; 
+      2'b11 : sbox_out = 8'hB4; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA5; 
+      2'b01 : sbox_out = 8'hFC; 
+      2'b10 : sbox_out = 8'h80; 
+      2'b11 : sbox_out = 8'hEF; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hCB; 
+      2'b01 : sbox_out = 8'hBB; 
+      2'b10 : sbox_out = 8'h6B; 
+      2'b11 : sbox_out = 8'h76; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hBA; 
+      2'b01 : sbox_out = 8'h5A; 
+      2'b10 : sbox_out = 8'h7D; 
+      2'b11 : sbox_out = 8'h78; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h0B; 
+      2'b01 : sbox_out = 8'h95; 
+      2'b10 : sbox_out = 8'hE3; 
+      2'b11 : sbox_out = 8'hAD; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h74; 
+      2'b01 : sbox_out = 8'h98; 
+      2'b10 : sbox_out = 8'h3B; 
+      2'b11 : sbox_out = 8'h36; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h64; 
+      2'b01 : sbox_out = 8'h6D; 
+      2'b10 : sbox_out = 8'hDC; 
+      2'b11 : sbox_out = 8'hF0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h59; 
+      2'b01 : sbox_out = 8'hA9; 
+      2'b10 : sbox_out = 8'h4C; 
+      2'b11 : sbox_out = 8'h17; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h7F; 
+      2'b01 : sbox_out = 8'h91; 
+      2'b10 : sbox_out = 8'hB8; 
+      2'b11 : sbox_out = 8'hC9; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h57; 
+      2'b01 : sbox_out = 8'h1B; 
+      2'b10 : sbox_out = 8'hE0; 
+      2'b11 : sbox_out = 8'h61; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else begin 
+    sbox_out = 8'd0; 
+  end
+end 
+
+endmodule 
+
+//INVERSE SBOX 0
+module kalyna_inv_sbox_0 (sbox_in, sbox_out); 
+
+input [7:0] sbox_in; 
+output reg [7:0] sbox_out; 
+
+always @ (*) begin 
+  case (sbox_in) 
+    8'b00000000 : sbox_out = 8'hA4; 
+    8'b00000001 : sbox_out = 8'hA2; 
+    8'b00000010 : sbox_out = 8'hA9; 
+    8'b00000011 : sbox_out = 8'hC5; 
+    8'b00000100 : sbox_out = 8'h4E; 
+    8'b00000101 : sbox_out = 8'hC9; 
+    8'b00000110 : sbox_out = 8'h03; 
+    8'b00000111 : sbox_out = 8'hD9; 
+    8'b00001000 : sbox_out = 8'h7E; 
+    8'b00001001 : sbox_out = 8'h0F; 
+    8'b00001010 : sbox_out = 8'hD2; 
+    8'b00001011 : sbox_out = 8'hAD; 
+    8'b00001100 : sbox_out = 8'hE7; 
+    8'b00001101 : sbox_out = 8'hD3; 
+    8'b00001110 : sbox_out = 8'h27; 
+    8'b00001111 : sbox_out = 8'h5B; 
+
+    8'b00010000 : sbox_out = 8'hE3; 
+    8'b00010001 : sbox_out = 8'hA1; 
+    8'b00010010 : sbox_out = 8'hE8; 
+    8'b00010011 : sbox_out = 8'hE6; 
+    8'b00010100 : sbox_out = 8'h7C; 
+    8'b00010101 : sbox_out = 8'h2A; 
+    8'b00010110 : sbox_out = 8'h55; 
+    8'b00010111 : sbox_out = 8'h0C; 
+    8'b00011000 : sbox_out = 8'h86; 
+    8'b00011001 : sbox_out = 8'h39; 
+    8'b00011010 : sbox_out = 8'hD7; 
+    8'b00011011 : sbox_out = 8'h8D; 
+    8'b00011100 : sbox_out = 8'hB8; 
+    8'b00011101 : sbox_out = 8'h12; 
+    8'b00011110 : sbox_out = 8'h6F; 
+    8'b00011111 : sbox_out = 8'h28; 
+
+    8'b00100000 : sbox_out = 8'hCD; 
+    8'b00100001 : sbox_out = 8'h8A; 
+    8'b00100010 : sbox_out = 8'h70; 
+    8'b00100011 : sbox_out = 8'h56; 
+    8'b00100100 : sbox_out = 8'h72; 
+    8'b00100101 : sbox_out = 8'hF9; 
+    8'b00100110 : sbox_out = 8'hBF; 
+    8'b00100111 : sbox_out = 8'h4F; 
+    8'b00101000 : sbox_out = 8'h73; 
+    8'b00101001 : sbox_out = 8'hE9; 
+    8'b00101010 : sbox_out = 8'hF7; 
+    8'b00101011 : sbox_out = 8'h57; 
+    8'b00101100 : sbox_out = 8'h16; 
+    8'b00101101 : sbox_out = 8'hAC; 
+    8'b00101110 : sbox_out = 8'h50; 
+    8'b00101111 : sbox_out = 8'hC0; 
+
+    8'b00110000 : sbox_out = 8'h9D; 
+    8'b00110001 : sbox_out = 8'hB7; 
+    8'b00110010 : sbox_out = 8'h47; 
+    8'b00110011 : sbox_out = 8'h71; 
+    8'b00110100 : sbox_out = 8'h60; 
+    8'b00110101 : sbox_out = 8'hC4; 
+    8'b00110110 : sbox_out = 8'h74; 
+    8'b00110111 : sbox_out = 8'h43; 
+    8'b00111000 : sbox_out = 8'h6C; 
+    8'b00111001 : sbox_out = 8'h1F; 
+    8'b00111010 : sbox_out = 8'h93; 
+    8'b00111011 : sbox_out = 8'h77; 
+    8'b00111100 : sbox_out = 8'hDC; 
+    8'b00111101 : sbox_out = 8'hCE; 
+    8'b00111110 : sbox_out = 8'h20; 
+    8'b00111111 : sbox_out = 8'h8C; 
+
+    8'b01000000 : sbox_out = 8'h99; 
+    8'b01000001 : sbox_out = 8'h5F; 
+    8'b01000010 : sbox_out = 8'h44; 
+    8'b01000011 : sbox_out = 8'h01; 
+    8'b01000100 : sbox_out = 8'hF5; 
+    8'b01000101 : sbox_out = 8'h1E; 
+    8'b01000110 : sbox_out = 8'h87; 
+    8'b01000111 : sbox_out = 8'h5E; 
+    8'b01001000 : sbox_out = 8'h61; 
+    8'b01001001 : sbox_out = 8'h2C; 
+    8'b01001010 : sbox_out = 8'h4B; 
+    8'b01001011 : sbox_out = 8'h1D; 
+    8'b01001100 : sbox_out = 8'h81; 
+    8'b01001101 : sbox_out = 8'h15; 
+    8'b01001110 : sbox_out = 8'hF4; 
+    8'b01001111 : sbox_out = 8'h23; 
+
+    8'b01010000 : sbox_out = 8'hD6; 
+    8'b01010001 : sbox_out = 8'hEA; 
+    8'b01010010 : sbox_out = 8'hE1; 
+    8'b01010011 : sbox_out = 8'h67; 
+    8'b01010100 : sbox_out = 8'hF1; 
+    8'b01010101 : sbox_out = 8'h7F; 
+    8'b01010110 : sbox_out = 8'hFE; 
+    8'b01010111 : sbox_out = 8'hDA; 
+    8'b01011000 : sbox_out = 8'h3C; 
+    8'b01011001 : sbox_out = 8'h07; 
+    8'b01011010 : sbox_out = 8'h53; 
+    8'b01011011 : sbox_out = 8'h6A; 
+    8'b01011100 : sbox_out = 8'h84; 
+    8'b01011101 : sbox_out = 8'h9C; 
+    8'b01011110 : sbox_out = 8'hCB; 
+    8'b01011111 : sbox_out = 8'h02; 
+
+    8'b01100000 : sbox_out = 8'h83; 
+    8'b01100001 : sbox_out = 8'h33; 
+    8'b01100010 : sbox_out = 8'hDD; 
+    8'b01100011 : sbox_out = 8'h35; 
+    8'b01100100 : sbox_out = 8'hE2; 
+    8'b01100101 : sbox_out = 8'h59; 
+    8'b01100110 : sbox_out = 8'h5A; 
+    8'b01100111 : sbox_out = 8'h98; 
+    8'b01101000 : sbox_out = 8'hA5; 
+    8'b01101001 : sbox_out = 8'h92; 
+    8'b01101010 : sbox_out = 8'h64; 
+    8'b01101011 : sbox_out = 8'h04; 
+    8'b01101100 : sbox_out = 8'h06; 
+    8'b01101101 : sbox_out = 8'h10; 
+    8'b01101110 : sbox_out = 8'h4D; 
+    8'b01101111 : sbox_out = 8'h1C; 
+
+    8'b01110000 : sbox_out = 8'h97; 
+    8'b01110001 : sbox_out = 8'h08; 
+    8'b01110010 : sbox_out = 8'h31; 
+    8'b01110011 : sbox_out = 8'hEE; 
+    8'b01110100 : sbox_out = 8'hAB; 
+    8'b01110101 : sbox_out = 8'h05; 
+    8'b01110110 : sbox_out = 8'hAF; 
+    8'b01110111 : sbox_out = 8'h79; 
+    8'b01111000 : sbox_out = 8'hA0; 
+    8'b01111001 : sbox_out = 8'h18; 
+    8'b01111010 : sbox_out = 8'h46; 
+    8'b01111011 : sbox_out = 8'h6D; 
+    8'b01111100 : sbox_out = 8'hFC; 
+    8'b01111101 : sbox_out = 8'h89; 
+    8'b01111110 : sbox_out = 8'hD4; 
+    8'b01111111 : sbox_out = 8'hC7; 
+
+    8'b10000000 : sbox_out = 8'hFF; 
+    8'b10000001 : sbox_out = 8'hF0; 
+    8'b10000010 : sbox_out = 8'hCF; 
+    8'b10000011 : sbox_out = 8'h42; 
+    8'b10000100 : sbox_out = 8'h91; 
+    8'b10000101 : sbox_out = 8'hF8; 
+    8'b10000110 : sbox_out = 8'h68; 
+    8'b10000111 : sbox_out = 8'h0A; 
+    8'b10001000 : sbox_out = 8'h65; 
+    8'b10001001 : sbox_out = 8'h8E; 
+    8'b10001010 : sbox_out = 8'hB6; 
+    8'b10001011 : sbox_out = 8'hFD; 
+    8'b10001100 : sbox_out = 8'hC3; 
+    8'b10001101 : sbox_out = 8'hEF; 
+    8'b10001110 : sbox_out = 8'h78; 
+    8'b10001111 : sbox_out = 8'h4C; 
+
+    8'b10010000 : sbox_out = 8'hCC; 
+    8'b10010001 : sbox_out = 8'h9E; 
+    8'b10010010 : sbox_out = 8'h30; 
+    8'b10010011 : sbox_out = 8'h2E; 
+    8'b10010100 : sbox_out = 8'hBC; 
+    8'b10010101 : sbox_out = 8'h0B; 
+    8'b10010110 : sbox_out = 8'h54; 
+    8'b10010111 : sbox_out = 8'h1A; 
+    8'b10011000 : sbox_out = 8'hA6; 
+    8'b10011001 : sbox_out = 8'hBB; 
+    8'b10011010 : sbox_out = 8'h26; 
+    8'b10011011 : sbox_out = 8'h80; 
+    8'b10011100 : sbox_out = 8'h48; 
+    8'b10011101 : sbox_out = 8'h94; 
+    8'b10011110 : sbox_out = 8'h32; 
+    8'b10011111 : sbox_out = 8'h7D; 
+
+    8'b10100000 : sbox_out = 8'hA7; 
+    8'b10100001 : sbox_out = 8'h3F; 
+    8'b10100010 : sbox_out = 8'hAE; 
+    8'b10100011 : sbox_out = 8'h22; 
+    8'b10100100 : sbox_out = 8'h3D; 
+    8'b10100101 : sbox_out = 8'h66; 
+    8'b10100110 : sbox_out = 8'hAA; 
+    8'b10100111 : sbox_out = 8'hF6; 
+    8'b10101000 : sbox_out = 8'h00; 
+    8'b10101001 : sbox_out = 8'h5D; 
+    8'b10101010 : sbox_out = 8'hBD; 
+    8'b10101011 : sbox_out = 8'h4A; 
+    8'b10101100 : sbox_out = 8'hE0; 
+    8'b10101101 : sbox_out = 8'h3B; 
+    8'b10101110 : sbox_out = 8'hB4; 
+    8'b10101111 : sbox_out = 8'h17; 
+
+    8'b10110000 : sbox_out = 8'h8B; 
+    8'b10110001 : sbox_out = 8'h9F; 
+    8'b10110010 : sbox_out = 8'h76; 
+    8'b10110011 : sbox_out = 8'hB0; 
+    8'b10110100 : sbox_out = 8'h24; 
+    8'b10110101 : sbox_out = 8'h9A; 
+    8'b10110110 : sbox_out = 8'h25; 
+    8'b10110111 : sbox_out = 8'h63; 
+    8'b10111000 : sbox_out = 8'hDB; 
+    8'b10111001 : sbox_out = 8'hEB; 
+    8'b10111010 : sbox_out = 8'h7A; 
+    8'b10111011 : sbox_out = 8'h3E; 
+    8'b10111100 : sbox_out = 8'h5C; 
+    8'b10111101 : sbox_out = 8'hB3; 
+    8'b10111110 : sbox_out = 8'hB1; 
+    8'b10111111 : sbox_out = 8'h29; 
+
+    8'b11000000 : sbox_out = 8'hF2; 
+    8'b11000001 : sbox_out = 8'hCA; 
+    8'b11000010 : sbox_out = 8'h58; 
+    8'b11000011 : sbox_out = 8'h6E; 
+    8'b11000100 : sbox_out = 8'hD8; 
+    8'b11000101 : sbox_out = 8'hA8; 
+    8'b11000110 : sbox_out = 8'h2F; 
+    8'b11000111 : sbox_out = 8'h75; 
+    8'b11001000 : sbox_out = 8'hDF; 
+    8'b11001001 : sbox_out = 8'h14; 
+    8'b11001010 : sbox_out = 8'hFB; 
+    8'b11001011 : sbox_out = 8'h13; 
+    8'b11001100 : sbox_out = 8'h49; 
+    8'b11001101 : sbox_out = 8'h88; 
+    8'b11001110 : sbox_out = 8'hB2; 
+    8'b11001111 : sbox_out = 8'hEC; 
+
+    8'b11010000 : sbox_out = 8'hE4; 
+    8'b11010001 : sbox_out = 8'h34; 
+    8'b11010010 : sbox_out = 8'h2D; 
+    8'b11010011 : sbox_out = 8'h96; 
+    8'b11010100 : sbox_out = 8'hC6; 
+    8'b11010101 : sbox_out = 8'h3A; 
+    8'b11010110 : sbox_out = 8'hED; 
+    8'b11010111 : sbox_out = 8'h95; 
+    8'b11011000 : sbox_out = 8'h0E; 
+    8'b11011001 : sbox_out = 8'hE5; 
+    8'b11011010 : sbox_out = 8'h85; 
+    8'b11011011 : sbox_out = 8'h6B; 
+    8'b11011100 : sbox_out = 8'h40; 
+    8'b11011101 : sbox_out = 8'h21; 
+    8'b11011110 : sbox_out = 8'h9B; 
+    8'b11011111 : sbox_out = 8'h09; 
+
+    8'b11100000 : sbox_out = 8'h19; 
+    8'b11100001 : sbox_out = 8'h2B; 
+    8'b11100010 : sbox_out = 8'h52; 
+    8'b11100011 : sbox_out = 8'hDE; 
+    8'b11100100 : sbox_out = 8'h45; 
+    8'b11100101 : sbox_out = 8'hA3; 
+    8'b11100110 : sbox_out = 8'hFA; 
+    8'b11100111 : sbox_out = 8'h51; 
+    8'b11101000 : sbox_out = 8'hC2; 
+    8'b11101001 : sbox_out = 8'hB5; 
+    8'b11101010 : sbox_out = 8'hD1; 
+    8'b11101011 : sbox_out = 8'h90; 
+    8'b11101100 : sbox_out = 8'hB9; 
+    8'b11101101 : sbox_out = 8'hF3; 
+    8'b11101110 : sbox_out = 8'h37; 
+    8'b11101111 : sbox_out = 8'hC1; 
+
+    8'b11110000 : sbox_out = 8'h0D; 
+    8'b11110001 : sbox_out = 8'hBA; 
+    8'b11110010 : sbox_out = 8'h41; 
+    8'b11110011 : sbox_out = 8'h11; 
+    8'b11110100 : sbox_out = 8'h38; 
+    8'b11110101 : sbox_out = 8'h7B; 
+    8'b11110110 : sbox_out = 8'hBE; 
+    8'b11110111 : sbox_out = 8'hD0; 
+    8'b11111000 : sbox_out = 8'hD5; 
+    8'b11111001 : sbox_out = 8'h69; 
+    8'b11111010 : sbox_out = 8'h36; 
+    8'b11111011 : sbox_out = 8'hC8; 
+    8'b11111100 : sbox_out = 8'h62; 
+    8'b11111101 : sbox_out = 8'h1B; 
+    8'b11111110 : sbox_out = 8'h82; 
+    8'b11111111 : sbox_out = 8'h8F; 
+
+    default : sbox_out = 8'd0; 
+  endcase 
+end 
+
+endmodule 
+
+//INVERSE SBOX 0 - Alternative 6
+module kalyna_inv_sbox_0_alt6 (sbox_in, sbox_out); 
+
+input [7:0] sbox_in; 
+output reg [7:0] sbox_out; 
+
+always @ (*) begin 
+  if (sbox_in[7:2] == 6'b000000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA4; 
+      2'b01 : sbox_out = 8'hA2; 
+      2'b10 : sbox_out = 8'hA9; 
+      2'b11 : sbox_out = 8'hC5; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h4E; 
+      2'b01 : sbox_out = 8'hC9; 
+      2'b10 : sbox_out = 8'h03; 
+      2'b11 : sbox_out = 8'hD9; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h7E; 
+      2'b01 : sbox_out = 8'h0F; 
+      2'b10 : sbox_out = 8'hD2; 
+      2'b11 : sbox_out = 8'hAD; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE7; 
+      2'b01 : sbox_out = 8'hD3; 
+      2'b10 : sbox_out = 8'h27; 
+      2'b11 : sbox_out = 8'h5B; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE3; 
+      2'b01 : sbox_out = 8'hA1; 
+      2'b10 : sbox_out = 8'hE8; 
+      2'b11 : sbox_out = 8'hE6; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h7C; 
+      2'b01 : sbox_out = 8'h2A; 
+      2'b10 : sbox_out = 8'h55; 
+      2'b11 : sbox_out = 8'h0C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h86; 
+      2'b01 : sbox_out = 8'h39; 
+      2'b10 : sbox_out = 8'hD7; 
+      2'b11 : sbox_out = 8'h8D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB8; 
+      2'b01 : sbox_out = 8'h12; 
+      2'b10 : sbox_out = 8'h6F; 
+      2'b11 : sbox_out = 8'h28; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hCD; 
+      2'b01 : sbox_out = 8'h8A; 
+      2'b10 : sbox_out = 8'h70; 
+      2'b11 : sbox_out = 8'h56; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h72; 
+      2'b01 : sbox_out = 8'hF9; 
+      2'b10 : sbox_out = 8'hBF; 
+      2'b11 : sbox_out = 8'h4F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h73; 
+      2'b01 : sbox_out = 8'hE9; 
+      2'b10 : sbox_out = 8'hF7; 
+      2'b11 : sbox_out = 8'h57; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h16; 
+      2'b01 : sbox_out = 8'hAC; 
+      2'b10 : sbox_out = 8'h50; 
+      2'b11 : sbox_out = 8'hC0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h9D; 
+      2'b01 : sbox_out = 8'hB7; 
+      2'b10 : sbox_out = 8'h47; 
+      2'b11 : sbox_out = 8'h71; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h60; 
+      2'b01 : sbox_out = 8'hC4; 
+      2'b10 : sbox_out = 8'h74; 
+      2'b11 : sbox_out = 8'h43; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6C; 
+      2'b01 : sbox_out = 8'h1F; 
+      2'b10 : sbox_out = 8'h93; 
+      2'b11 : sbox_out = 8'h77; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hDC; 
+      2'b01 : sbox_out = 8'hCE; 
+      2'b10 : sbox_out = 8'h20; 
+      2'b11 : sbox_out = 8'h8C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h99; 
+      2'b01 : sbox_out = 8'h5F; 
+      2'b10 : sbox_out = 8'h44; 
+      2'b11 : sbox_out = 8'h01; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF5; 
+      2'b01 : sbox_out = 8'h1E; 
+      2'b10 : sbox_out = 8'h87; 
+      2'b11 : sbox_out = 8'h5E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h61; 
+      2'b01 : sbox_out = 8'h2C; 
+      2'b10 : sbox_out = 8'h4B; 
+      2'b11 : sbox_out = 8'h1D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h81; 
+      2'b01 : sbox_out = 8'h15; 
+      2'b10 : sbox_out = 8'hF4; 
+      2'b11 : sbox_out = 8'h23; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hD6; 
+      2'b01 : sbox_out = 8'hEA; 
+      2'b10 : sbox_out = 8'hE1; 
+      2'b11 : sbox_out = 8'h67; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF1; 
+      2'b01 : sbox_out = 8'h7F; 
+      2'b10 : sbox_out = 8'hFE; 
+      2'b11 : sbox_out = 8'hDA; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h3C; 
+      2'b01 : sbox_out = 8'h07; 
+      2'b10 : sbox_out = 8'h53; 
+      2'b11 : sbox_out = 8'h6A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h84; 
+      2'b01 : sbox_out = 8'h9C; 
+      2'b10 : sbox_out = 8'hCB; 
+      2'b11 : sbox_out = 8'h02; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h83; 
+      2'b01 : sbox_out = 8'h33; 
+      2'b10 : sbox_out = 8'hDD; 
+      2'b11 : sbox_out = 8'h35; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE2; 
+      2'b01 : sbox_out = 8'h59; 
+      2'b10 : sbox_out = 8'h5A; 
+      2'b11 : sbox_out = 8'h98; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA5; 
+      2'b01 : sbox_out = 8'h92; 
+      2'b10 : sbox_out = 8'h64; 
+      2'b11 : sbox_out = 8'h04; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h06; 
+      2'b01 : sbox_out = 8'h10; 
+      2'b10 : sbox_out = 8'h4D; 
+      2'b11 : sbox_out = 8'h1C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h97; 
+      2'b01 : sbox_out = 8'h08; 
+      2'b10 : sbox_out = 8'h31; 
+      2'b11 : sbox_out = 8'hEE; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hAB; 
+      2'b01 : sbox_out = 8'h05; 
+      2'b10 : sbox_out = 8'hAF; 
+      2'b11 : sbox_out = 8'h79; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA0; 
+      2'b01 : sbox_out = 8'h18; 
+      2'b10 : sbox_out = 8'h46; 
+      2'b11 : sbox_out = 8'h6D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hFC; 
+      2'b01 : sbox_out = 8'h89; 
+      2'b10 : sbox_out = 8'hD4; 
+      2'b11 : sbox_out = 8'hC7; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hFF; 
+      2'b01 : sbox_out = 8'hF0; 
+      2'b10 : sbox_out = 8'hCF; 
+      2'b11 : sbox_out = 8'h42; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h91; 
+      2'b01 : sbox_out = 8'hF8; 
+      2'b10 : sbox_out = 8'h68; 
+      2'b11 : sbox_out = 8'h0A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h65; 
+      2'b01 : sbox_out = 8'h8E; 
+      2'b10 : sbox_out = 8'hB6; 
+      2'b11 : sbox_out = 8'hFD; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC3; 
+      2'b01 : sbox_out = 8'hEF; 
+      2'b10 : sbox_out = 8'h78; 
+      2'b11 : sbox_out = 8'h4C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hCC; 
+      2'b01 : sbox_out = 8'h9E; 
+      2'b10 : sbox_out = 8'h30; 
+      2'b11 : sbox_out = 8'h2E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hBC; 
+      2'b01 : sbox_out = 8'h0B; 
+      2'b10 : sbox_out = 8'h54; 
+      2'b11 : sbox_out = 8'h1A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA6; 
+      2'b01 : sbox_out = 8'hBB; 
+      2'b10 : sbox_out = 8'h26; 
+      2'b11 : sbox_out = 8'h80; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h48; 
+      2'b01 : sbox_out = 8'h94; 
+      2'b10 : sbox_out = 8'h32; 
+      2'b11 : sbox_out = 8'h7D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA7; 
+      2'b01 : sbox_out = 8'h3F; 
+      2'b10 : sbox_out = 8'hAE; 
+      2'b11 : sbox_out = 8'h22; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h3D; 
+      2'b01 : sbox_out = 8'h66; 
+      2'b10 : sbox_out = 8'hAA; 
+      2'b11 : sbox_out = 8'hF6; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h00; 
+      2'b01 : sbox_out = 8'h5D; 
+      2'b10 : sbox_out = 8'hBD; 
+      2'b11 : sbox_out = 8'h4A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE0; 
+      2'b01 : sbox_out = 8'h3B; 
+      2'b10 : sbox_out = 8'hB4; 
+      2'b11 : sbox_out = 8'h17; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h8B; 
+      2'b01 : sbox_out = 8'h9F; 
+      2'b10 : sbox_out = 8'h76; 
+      2'b11 : sbox_out = 8'hB0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h24; 
+      2'b01 : sbox_out = 8'h9A; 
+      2'b10 : sbox_out = 8'h25; 
+      2'b11 : sbox_out = 8'h63; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hDB; 
+      2'b01 : sbox_out = 8'hEB; 
+      2'b10 : sbox_out = 8'h7A; 
+      2'b11 : sbox_out = 8'h3E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h5C; 
+      2'b01 : sbox_out = 8'hB3; 
+      2'b10 : sbox_out = 8'hB1; 
+      2'b11 : sbox_out = 8'h29; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF2; 
+      2'b01 : sbox_out = 8'hCA; 
+      2'b10 : sbox_out = 8'h58; 
+      2'b11 : sbox_out = 8'h6E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hD8; 
+      2'b01 : sbox_out = 8'hA8; 
+      2'b10 : sbox_out = 8'h2F; 
+      2'b11 : sbox_out = 8'h75; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hDF; 
+      2'b01 : sbox_out = 8'h14; 
+      2'b10 : sbox_out = 8'hFB; 
+      2'b11 : sbox_out = 8'h13; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h49; 
+      2'b01 : sbox_out = 8'h88; 
+      2'b10 : sbox_out = 8'hB2; 
+      2'b11 : sbox_out = 8'hEC; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE4; 
+      2'b01 : sbox_out = 8'h34; 
+      2'b10 : sbox_out = 8'h2D; 
+      2'b11 : sbox_out = 8'h96; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC6; 
+      2'b01 : sbox_out = 8'h3A; 
+      2'b10 : sbox_out = 8'hED; 
+      2'b11 : sbox_out = 8'h95; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h0E; 
+      2'b01 : sbox_out = 8'hE5; 
+      2'b10 : sbox_out = 8'h85; 
+      2'b11 : sbox_out = 8'h6B; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h40; 
+      2'b01 : sbox_out = 8'h21; 
+      2'b10 : sbox_out = 8'h9B; 
+      2'b11 : sbox_out = 8'h09; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h19; 
+      2'b01 : sbox_out = 8'h2B; 
+      2'b10 : sbox_out = 8'h52; 
+      2'b11 : sbox_out = 8'hDE; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h45; 
+      2'b01 : sbox_out = 8'hA3; 
+      2'b10 : sbox_out = 8'hFA; 
+      2'b11 : sbox_out = 8'h51; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC2; 
+      2'b01 : sbox_out = 8'hB5; 
+      2'b10 : sbox_out = 8'hD1; 
+      2'b11 : sbox_out = 8'h90; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB9; 
+      2'b01 : sbox_out = 8'hF3; 
+      2'b10 : sbox_out = 8'h37; 
+      2'b11 : sbox_out = 8'hC1; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h0D; 
+      2'b01 : sbox_out = 8'hBA; 
+      2'b10 : sbox_out = 8'h41; 
+      2'b11 : sbox_out = 8'h11; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h38; 
+      2'b01 : sbox_out = 8'h7B; 
+      2'b10 : sbox_out = 8'hBE; 
+      2'b11 : sbox_out = 8'hD0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hD5; 
+      2'b01 : sbox_out = 8'h69; 
+      2'b10 : sbox_out = 8'h36; 
+      2'b11 : sbox_out = 8'hC8; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h62; 
+      2'b01 : sbox_out = 8'h1B; 
+      2'b10 : sbox_out = 8'h82; 
+      2'b11 : sbox_out = 8'h8F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+end 
+
+endmodule 
+
+//INVERSE SBOX 1
+module kalyna_inv_sbox_1 (sbox_in, sbox_out); 
+
+input [7:0] sbox_in; 
+output reg [7:0] sbox_out; 
+
+always @ (*) begin 
+  case (sbox_in) 
+    8'b00000000 : sbox_out = 8'h83; 
+    8'b00000001 : sbox_out = 8'hF2; 
+    8'b00000010 : sbox_out = 8'h2A; 
+    8'b00000011 : sbox_out = 8'hEB; 
+    8'b00000100 : sbox_out = 8'hE9; 
+    8'b00000101 : sbox_out = 8'hBF; 
+    8'b00000110 : sbox_out = 8'h7B; 
+    8'b00000111 : sbox_out = 8'h9C; 
+    8'b00001000 : sbox_out = 8'h34; 
+    8'b00001001 : sbox_out = 8'h96; 
+    8'b00001010 : sbox_out = 8'h8D; 
+    8'b00001011 : sbox_out = 8'h98; 
+    8'b00001100 : sbox_out = 8'hB9; 
+    8'b00001101 : sbox_out = 8'h69; 
+    8'b00001110 : sbox_out = 8'h8C; 
+    8'b00001111 : sbox_out = 8'h29; 
+
+    8'b00010000 : sbox_out = 8'h3D; 
+    8'b00010001 : sbox_out = 8'h88; 
+    8'b00010010 : sbox_out = 8'h68; 
+    8'b00010011 : sbox_out = 8'h06; 
+    8'b00010100 : sbox_out = 8'h39; 
+    8'b00010101 : sbox_out = 8'h11; 
+    8'b00010110 : sbox_out = 8'h4C; 
+    8'b00010111 : sbox_out = 8'h0E; 
+    8'b00011000 : sbox_out = 8'hA0; 
+    8'b00011001 : sbox_out = 8'h56; 
+    8'b00011010 : sbox_out = 8'h40; 
+    8'b00011011 : sbox_out = 8'h92; 
+    8'b00011100 : sbox_out = 8'h15; 
+    8'b00011101 : sbox_out = 8'hBC; 
+    8'b00011110 : sbox_out = 8'hB3; 
+    8'b00011111 : sbox_out = 8'hDC; 
+
+    8'b00100000 : sbox_out = 8'h6F; 
+    8'b00100001 : sbox_out = 8'hF8; 
+    8'b00100010 : sbox_out = 8'h26; 
+    8'b00100011 : sbox_out = 8'hBA; 
+    8'b00100100 : sbox_out = 8'hBE; 
+    8'b00100101 : sbox_out = 8'hBD; 
+    8'b00100110 : sbox_out = 8'h31; 
+    8'b00100111 : sbox_out = 8'hFB; 
+    8'b00101000 : sbox_out = 8'hC3; 
+    8'b00101001 : sbox_out = 8'hFE; 
+    8'b00101010 : sbox_out = 8'h80; 
+    8'b00101011 : sbox_out = 8'h61; 
+    8'b00101100 : sbox_out = 8'hE1; 
+    8'b00101101 : sbox_out = 8'h7A; 
+    8'b00101110 : sbox_out = 8'h32; 
+    8'b00101111 : sbox_out = 8'hD2; 
+
+    8'b00110000 : sbox_out = 8'h70; 
+    8'b00110001 : sbox_out = 8'h20; 
+    8'b00110010 : sbox_out = 8'hA1; 
+    8'b00110011 : sbox_out = 8'h45; 
+    8'b00110100 : sbox_out = 8'hEC; 
+    8'b00110101 : sbox_out = 8'hD9; 
+    8'b00110110 : sbox_out = 8'h1A; 
+    8'b00110111 : sbox_out = 8'h5D; 
+    8'b00111000 : sbox_out = 8'hB4; 
+    8'b00111001 : sbox_out = 8'hD8; 
+    8'b00111010 : sbox_out = 8'h09; 
+    8'b00111011 : sbox_out = 8'hA5; 
+    8'b00111100 : sbox_out = 8'h55; 
+    8'b00111101 : sbox_out = 8'h8E; 
+    8'b00111110 : sbox_out = 8'h37; 
+    8'b00111111 : sbox_out = 8'h76; 
+
+    8'b01000000 : sbox_out = 8'hA9; 
+    8'b01000001 : sbox_out = 8'h67; 
+    8'b01000010 : sbox_out = 8'h10; 
+    8'b01000011 : sbox_out = 8'h17; 
+    8'b01000100 : sbox_out = 8'h36; 
+    8'b01000101 : sbox_out = 8'h65; 
+    8'b01000110 : sbox_out = 8'hB1; 
+    8'b01000111 : sbox_out = 8'h95; 
+    8'b01001000 : sbox_out = 8'h62; 
+    8'b01001001 : sbox_out = 8'h59; 
+    8'b01001010 : sbox_out = 8'h74; 
+    8'b01001011 : sbox_out = 8'hA3; 
+    8'b01001100 : sbox_out = 8'h50; 
+    8'b01001101 : sbox_out = 8'h2F; 
+    8'b01001110 : sbox_out = 8'h4B; 
+    8'b01001111 : sbox_out = 8'hC8; 
+
+    8'b01010000 : sbox_out = 8'hD0; 
+    8'b01010001 : sbox_out = 8'h8F; 
+    8'b01010010 : sbox_out = 8'hCD; 
+    8'b01010011 : sbox_out = 8'hD4; 
+    8'b01010100 : sbox_out = 8'h3C; 
+    8'b01010101 : sbox_out = 8'h86; 
+    8'b01010110 : sbox_out = 8'h12; 
+    8'b01010111 : sbox_out = 8'h1D; 
+    8'b01011000 : sbox_out = 8'h23; 
+    8'b01011001 : sbox_out = 8'hEF; 
+    8'b01011010 : sbox_out = 8'hF4; 
+    8'b01011011 : sbox_out = 8'h53; 
+    8'b01011100 : sbox_out = 8'h19; 
+    8'b01011101 : sbox_out = 8'h35; 
+    8'b01011110 : sbox_out = 8'hE6; 
+    8'b01011111 : sbox_out = 8'h7F; 
+
+    8'b01100000 : sbox_out = 8'h5E; 
+    8'b01100001 : sbox_out = 8'hD6; 
+    8'b01100010 : sbox_out = 8'h79; 
+    8'b01100011 : sbox_out = 8'h51; 
+    8'b01100100 : sbox_out = 8'h22; 
+    8'b01100101 : sbox_out = 8'h14; 
+    8'b01100110 : sbox_out = 8'hF7; 
+    8'b01100111 : sbox_out = 8'h1E; 
+    8'b01101000 : sbox_out = 8'h4A; 
+    8'b01101001 : sbox_out = 8'h42; 
+    8'b01101010 : sbox_out = 8'h9B; 
+    8'b01101011 : sbox_out = 8'h41; 
+    8'b01101100 : sbox_out = 8'h73; 
+    8'b01101101 : sbox_out = 8'h2D; 
+    8'b01101110 : sbox_out = 8'hC1; 
+    8'b01101111 : sbox_out = 8'h5C; 
+
+    8'b01110000 : sbox_out = 8'hA6; 
+    8'b01110001 : sbox_out = 8'hA2; 
+    8'b01110010 : sbox_out = 8'hE0; 
+    8'b01110011 : sbox_out = 8'h2E; 
+    8'b01110100 : sbox_out = 8'hD3; 
+    8'b01110101 : sbox_out = 8'h28; 
+    8'b01110110 : sbox_out = 8'hBB; 
+    8'b01110111 : sbox_out = 8'hC9; 
+    8'b01111000 : sbox_out = 8'hAE; 
+    8'b01111001 : sbox_out = 8'h6A; 
+    8'b01111010 : sbox_out = 8'hD1; 
+    8'b01111011 : sbox_out = 8'h5A; 
+    8'b01111100 : sbox_out = 8'h30; 
+    8'b01111101 : sbox_out = 8'h90; 
+    8'b01111110 : sbox_out = 8'h84; 
+    8'b01111111 : sbox_out = 8'hF9; 
+
+    8'b10000000 : sbox_out = 8'hB2; 
+    8'b10000001 : sbox_out = 8'h58; 
+    8'b10000010 : sbox_out = 8'hCF; 
+    8'b10000011 : sbox_out = 8'h7E; 
+    8'b10000100 : sbox_out = 8'hC5; 
+    8'b10000101 : sbox_out = 8'hCB; 
+    8'b10000110 : sbox_out = 8'h97; 
+    8'b10000111 : sbox_out = 8'hE4; 
+    8'b10001000 : sbox_out = 8'h16; 
+    8'b10001001 : sbox_out = 8'h6C; 
+    8'b10001010 : sbox_out = 8'hFA; 
+    8'b10001011 : sbox_out = 8'hB0; 
+    8'b10001100 : sbox_out = 8'h6D; 
+    8'b10001101 : sbox_out = 8'h1F; 
+    8'b10001110 : sbox_out = 8'h52; 
+    8'b10001111 : sbox_out = 8'h99; 
+
+    8'b10010000 : sbox_out = 8'h0D; 
+    8'b10010001 : sbox_out = 8'h4E; 
+    8'b10010010 : sbox_out = 8'h03; 
+    8'b10010011 : sbox_out = 8'h91; 
+    8'b10010100 : sbox_out = 8'hC2; 
+    8'b10010101 : sbox_out = 8'h4D; 
+    8'b10010110 : sbox_out = 8'h64; 
+    8'b10010111 : sbox_out = 8'h77; 
+    8'b10011000 : sbox_out = 8'h9F; 
+    8'b10011001 : sbox_out = 8'hDD; 
+    8'b10011010 : sbox_out = 8'hC4; 
+    8'b10011011 : sbox_out = 8'h49; 
+    8'b10011100 : sbox_out = 8'h8A; 
+    8'b10011101 : sbox_out = 8'h9A; 
+    8'b10011110 : sbox_out = 8'h24; 
+    8'b10011111 : sbox_out = 8'h38; 
+
+    8'b10100000 : sbox_out = 8'hA7; 
+    8'b10100001 : sbox_out = 8'h57; 
+    8'b10100010 : sbox_out = 8'h85; 
+    8'b10100011 : sbox_out = 8'hC7; 
+    8'b10100100 : sbox_out = 8'h7C; 
+    8'b10100101 : sbox_out = 8'h7D; 
+    8'b10100110 : sbox_out = 8'hE7; 
+    8'b10100111 : sbox_out = 8'hF6; 
+    8'b10101000 : sbox_out = 8'hB7; 
+    8'b10101001 : sbox_out = 8'hAC; 
+    8'b10101010 : sbox_out = 8'h27; 
+    8'b10101011 : sbox_out = 8'h46; 
+    8'b10101100 : sbox_out = 8'hDE; 
+    8'b10101101 : sbox_out = 8'hDF; 
+    8'b10101110 : sbox_out = 8'h3B; 
+    8'b10101111 : sbox_out = 8'hD7; 
+
+    8'b10110000 : sbox_out = 8'h9E; 
+    8'b10110001 : sbox_out = 8'h2B; 
+    8'b10110010 : sbox_out = 8'h0B; 
+    8'b10110011 : sbox_out = 8'hD5; 
+    8'b10110100 : sbox_out = 8'h13; 
+    8'b10110101 : sbox_out = 8'h75; 
+    8'b10110110 : sbox_out = 8'hF0; 
+    8'b10110111 : sbox_out = 8'h72; 
+    8'b10111000 : sbox_out = 8'hB6; 
+    8'b10111001 : sbox_out = 8'h9D; 
+    8'b10111010 : sbox_out = 8'h1B; 
+    8'b10111011 : sbox_out = 8'h01; 
+    8'b10111100 : sbox_out = 8'h3F; 
+    8'b10111101 : sbox_out = 8'h44; 
+    8'b10111110 : sbox_out = 8'hE5; 
+    8'b10111111 : sbox_out = 8'h87; 
+
+    8'b11000000 : sbox_out = 8'hFD; 
+    8'b11000001 : sbox_out = 8'h07; 
+    8'b11000010 : sbox_out = 8'hF1; 
+    8'b11000011 : sbox_out = 8'hAB; 
+    8'b11000100 : sbox_out = 8'h94; 
+    8'b11000101 : sbox_out = 8'h18; 
+    8'b11000110 : sbox_out = 8'hEA; 
+    8'b11000111 : sbox_out = 8'hFC; 
+    8'b11001000 : sbox_out = 8'h3A; 
+    8'b11001001 : sbox_out = 8'h82; 
+    8'b11001010 : sbox_out = 8'h5F; 
+    8'b11001011 : sbox_out = 8'h05; 
+    8'b11001100 : sbox_out = 8'h54; 
+    8'b11001101 : sbox_out = 8'hDB; 
+    8'b11001110 : sbox_out = 8'h00; 
+    8'b11001111 : sbox_out = 8'h8B; 
+
+    8'b11010000 : sbox_out = 8'hE3; 
+    8'b11010001 : sbox_out = 8'h48; 
+    8'b11010010 : sbox_out = 8'h0C; 
+    8'b11010011 : sbox_out = 8'hCA; 
+    8'b11010100 : sbox_out = 8'h78; 
+    8'b11010101 : sbox_out = 8'h89; 
+    8'b11010110 : sbox_out = 8'h0A; 
+    8'b11010111 : sbox_out = 8'hFF; 
+    8'b11011000 : sbox_out = 8'h3E; 
+    8'b11011001 : sbox_out = 8'h5B; 
+    8'b11011010 : sbox_out = 8'h81; 
+    8'b11011011 : sbox_out = 8'hEE; 
+    8'b11011100 : sbox_out = 8'h71; 
+    8'b11011101 : sbox_out = 8'hE2; 
+    8'b11011110 : sbox_out = 8'hDA; 
+    8'b11011111 : sbox_out = 8'h2C; 
+
+    8'b11100000 : sbox_out = 8'hB8; 
+    8'b11100001 : sbox_out = 8'hB5; 
+    8'b11100010 : sbox_out = 8'hCC; 
+    8'b11100011 : sbox_out = 8'h6E; 
+    8'b11100100 : sbox_out = 8'hA8; 
+    8'b11100101 : sbox_out = 8'h6B; 
+    8'b11100110 : sbox_out = 8'hAD; 
+    8'b11100111 : sbox_out = 8'h60; 
+    8'b11101000 : sbox_out = 8'hC6; 
+    8'b11101001 : sbox_out = 8'h08; 
+    8'b11101010 : sbox_out = 8'h04; 
+    8'b11101011 : sbox_out = 8'h02; 
+    8'b11101100 : sbox_out = 8'hE8; 
+    8'b11101101 : sbox_out = 8'hF5; 
+    8'b11101110 : sbox_out = 8'h4F; 
+    8'b11101111 : sbox_out = 8'hA4; 
+
+    8'b11110000 : sbox_out = 8'hF3; 
+    8'b11110001 : sbox_out = 8'hC0; 
+    8'b11110010 : sbox_out = 8'hCE; 
+    8'b11110011 : sbox_out = 8'h43; 
+    8'b11110100 : sbox_out = 8'h25; 
+    8'b11110101 : sbox_out = 8'h1C; 
+    8'b11110110 : sbox_out = 8'h21; 
+    8'b11110111 : sbox_out = 8'h33; 
+    8'b11111000 : sbox_out = 8'h0F; 
+    8'b11111001 : sbox_out = 8'hAF; 
+    8'b11111010 : sbox_out = 8'h47; 
+    8'b11111011 : sbox_out = 8'hED; 
+    8'b11111100 : sbox_out = 8'h66; 
+    8'b11111101 : sbox_out = 8'h63; 
+    8'b11111110 : sbox_out = 8'h93; 
+    8'b11111111 : sbox_out = 8'hAA; 
+
+    default : sbox_out = 8'd0; 
+  endcase 
+end 
+
+endmodule 
+
+//INVERSE SBOX 1 - Alternative 6
+module kalyna_inv_sbox_1_alt6 (sbox_in, sbox_out); 
+
+input [7:0] sbox_in; 
+output reg [7:0] sbox_out; 
+
+always @ (*) begin 
+  if (sbox_in[7:2] == 6'b000000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h83; 
+      2'b01 : sbox_out = 8'hF2; 
+      2'b10 : sbox_out = 8'h2A; 
+      2'b11 : sbox_out = 8'hEB; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE9; 
+      2'b01 : sbox_out = 8'hBF; 
+      2'b10 : sbox_out = 8'h7B; 
+      2'b11 : sbox_out = 8'h9C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h34; 
+      2'b01 : sbox_out = 8'h96; 
+      2'b10 : sbox_out = 8'h8D; 
+      2'b11 : sbox_out = 8'h98; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB9; 
+      2'b01 : sbox_out = 8'h69; 
+      2'b10 : sbox_out = 8'h8C; 
+      2'b11 : sbox_out = 8'h29; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h3D; 
+      2'b01 : sbox_out = 8'h88; 
+      2'b10 : sbox_out = 8'h68; 
+      2'b11 : sbox_out = 8'h06; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h39; 
+      2'b01 : sbox_out = 8'h11; 
+      2'b10 : sbox_out = 8'h4C; 
+      2'b11 : sbox_out = 8'h0E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA0; 
+      2'b01 : sbox_out = 8'h56; 
+      2'b10 : sbox_out = 8'h40; 
+      2'b11 : sbox_out = 8'h92; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h15; 
+      2'b01 : sbox_out = 8'hBC; 
+      2'b10 : sbox_out = 8'hB3; 
+      2'b11 : sbox_out = 8'hDC; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6F; 
+      2'b01 : sbox_out = 8'hF8; 
+      2'b10 : sbox_out = 8'h26; 
+      2'b11 : sbox_out = 8'hBA; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hBE; 
+      2'b01 : sbox_out = 8'hBD; 
+      2'b10 : sbox_out = 8'h31; 
+      2'b11 : sbox_out = 8'hFB; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC3; 
+      2'b01 : sbox_out = 8'hFE; 
+      2'b10 : sbox_out = 8'h80; 
+      2'b11 : sbox_out = 8'h61; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE1; 
+      2'b01 : sbox_out = 8'h7A; 
+      2'b10 : sbox_out = 8'h32; 
+      2'b11 : sbox_out = 8'hD2; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h70; 
+      2'b01 : sbox_out = 8'h20; 
+      2'b10 : sbox_out = 8'hA1; 
+      2'b11 : sbox_out = 8'h45; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hEC; 
+      2'b01 : sbox_out = 8'hD9; 
+      2'b10 : sbox_out = 8'h1A; 
+      2'b11 : sbox_out = 8'h5D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB4; 
+      2'b01 : sbox_out = 8'hD8; 
+      2'b10 : sbox_out = 8'h09; 
+      2'b11 : sbox_out = 8'hA5; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h55; 
+      2'b01 : sbox_out = 8'h8E; 
+      2'b10 : sbox_out = 8'h37; 
+      2'b11 : sbox_out = 8'h76; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA9; 
+      2'b01 : sbox_out = 8'h67; 
+      2'b10 : sbox_out = 8'h10; 
+      2'b11 : sbox_out = 8'h17; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h36; 
+      2'b01 : sbox_out = 8'h65; 
+      2'b10 : sbox_out = 8'hB1; 
+      2'b11 : sbox_out = 8'h95; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h62; 
+      2'b01 : sbox_out = 8'h59; 
+      2'b10 : sbox_out = 8'h74; 
+      2'b11 : sbox_out = 8'hA3; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h50; 
+      2'b01 : sbox_out = 8'h2F; 
+      2'b10 : sbox_out = 8'h4B; 
+      2'b11 : sbox_out = 8'hC8; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hD0; 
+      2'b01 : sbox_out = 8'h8F; 
+      2'b10 : sbox_out = 8'hCD; 
+      2'b11 : sbox_out = 8'hD4; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h3C; 
+      2'b01 : sbox_out = 8'h86; 
+      2'b10 : sbox_out = 8'h12; 
+      2'b11 : sbox_out = 8'h1D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h23; 
+      2'b01 : sbox_out = 8'hEF; 
+      2'b10 : sbox_out = 8'hF4; 
+      2'b11 : sbox_out = 8'h53; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h19; 
+      2'b01 : sbox_out = 8'h35; 
+      2'b10 : sbox_out = 8'hE6; 
+      2'b11 : sbox_out = 8'h7F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h5E; 
+      2'b01 : sbox_out = 8'hD6; 
+      2'b10 : sbox_out = 8'h79; 
+      2'b11 : sbox_out = 8'h51; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h22; 
+      2'b01 : sbox_out = 8'h14; 
+      2'b10 : sbox_out = 8'hF7; 
+      2'b11 : sbox_out = 8'h1E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h4A; 
+      2'b01 : sbox_out = 8'h42; 
+      2'b10 : sbox_out = 8'h9B; 
+      2'b11 : sbox_out = 8'h41; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h73; 
+      2'b01 : sbox_out = 8'h2D; 
+      2'b10 : sbox_out = 8'hC1; 
+      2'b11 : sbox_out = 8'h5C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA6; 
+      2'b01 : sbox_out = 8'hA2; 
+      2'b10 : sbox_out = 8'hE0; 
+      2'b11 : sbox_out = 8'h2E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hD3; 
+      2'b01 : sbox_out = 8'h28; 
+      2'b10 : sbox_out = 8'hBB; 
+      2'b11 : sbox_out = 8'hC9; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hAE; 
+      2'b01 : sbox_out = 8'h6A; 
+      2'b10 : sbox_out = 8'hD1; 
+      2'b11 : sbox_out = 8'h5A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h30; 
+      2'b01 : sbox_out = 8'h90; 
+      2'b10 : sbox_out = 8'h84; 
+      2'b11 : sbox_out = 8'hF9; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB2; 
+      2'b01 : sbox_out = 8'h58; 
+      2'b10 : sbox_out = 8'hCF; 
+      2'b11 : sbox_out = 8'h7E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC5; 
+      2'b01 : sbox_out = 8'hCB; 
+      2'b10 : sbox_out = 8'h97; 
+      2'b11 : sbox_out = 8'hE4; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h16; 
+      2'b01 : sbox_out = 8'h6C; 
+      2'b10 : sbox_out = 8'hFA; 
+      2'b11 : sbox_out = 8'hB0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6D; 
+      2'b01 : sbox_out = 8'h1F; 
+      2'b10 : sbox_out = 8'h52; 
+      2'b11 : sbox_out = 8'h99; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h0D; 
+      2'b01 : sbox_out = 8'h4E; 
+      2'b10 : sbox_out = 8'h03; 
+      2'b11 : sbox_out = 8'h91; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC2; 
+      2'b01 : sbox_out = 8'h4D; 
+      2'b10 : sbox_out = 8'h64; 
+      2'b11 : sbox_out = 8'h77; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h9F; 
+      2'b01 : sbox_out = 8'hDD; 
+      2'b10 : sbox_out = 8'hC4; 
+      2'b11 : sbox_out = 8'h49; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h8A; 
+      2'b01 : sbox_out = 8'h9A; 
+      2'b10 : sbox_out = 8'h24; 
+      2'b11 : sbox_out = 8'h38; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA7; 
+      2'b01 : sbox_out = 8'h57; 
+      2'b10 : sbox_out = 8'h85; 
+      2'b11 : sbox_out = 8'hC7; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h7C; 
+      2'b01 : sbox_out = 8'h7D; 
+      2'b10 : sbox_out = 8'hE7; 
+      2'b11 : sbox_out = 8'hF6; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB7; 
+      2'b01 : sbox_out = 8'hAC; 
+      2'b10 : sbox_out = 8'h27; 
+      2'b11 : sbox_out = 8'h46; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hDE; 
+      2'b01 : sbox_out = 8'hDF; 
+      2'b10 : sbox_out = 8'h3B; 
+      2'b11 : sbox_out = 8'hD7; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h9E; 
+      2'b01 : sbox_out = 8'h2B; 
+      2'b10 : sbox_out = 8'h0B; 
+      2'b11 : sbox_out = 8'hD5; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h13; 
+      2'b01 : sbox_out = 8'h75; 
+      2'b10 : sbox_out = 8'hF0; 
+      2'b11 : sbox_out = 8'h72; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB6; 
+      2'b01 : sbox_out = 8'h9D; 
+      2'b10 : sbox_out = 8'h1B; 
+      2'b11 : sbox_out = 8'h01; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h3F; 
+      2'b01 : sbox_out = 8'h44; 
+      2'b10 : sbox_out = 8'hE5; 
+      2'b11 : sbox_out = 8'h87; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hFD; 
+      2'b01 : sbox_out = 8'h07; 
+      2'b10 : sbox_out = 8'hF1; 
+      2'b11 : sbox_out = 8'hAB; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h94; 
+      2'b01 : sbox_out = 8'h18; 
+      2'b10 : sbox_out = 8'hEA; 
+      2'b11 : sbox_out = 8'hFC; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h3A; 
+      2'b01 : sbox_out = 8'h82; 
+      2'b10 : sbox_out = 8'h5F; 
+      2'b11 : sbox_out = 8'h05; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h54; 
+      2'b01 : sbox_out = 8'hDB; 
+      2'b10 : sbox_out = 8'h00; 
+      2'b11 : sbox_out = 8'h8B; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE3; 
+      2'b01 : sbox_out = 8'h48; 
+      2'b10 : sbox_out = 8'h0C; 
+      2'b11 : sbox_out = 8'hCA; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h78; 
+      2'b01 : sbox_out = 8'h89; 
+      2'b10 : sbox_out = 8'h0A; 
+      2'b11 : sbox_out = 8'hFF; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h3E; 
+      2'b01 : sbox_out = 8'h5B; 
+      2'b10 : sbox_out = 8'h81; 
+      2'b11 : sbox_out = 8'hEE; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h71; 
+      2'b01 : sbox_out = 8'hE2; 
+      2'b10 : sbox_out = 8'hDA; 
+      2'b11 : sbox_out = 8'h2C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB8; 
+      2'b01 : sbox_out = 8'hB5; 
+      2'b10 : sbox_out = 8'hCC; 
+      2'b11 : sbox_out = 8'h6E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA8; 
+      2'b01 : sbox_out = 8'h6B; 
+      2'b10 : sbox_out = 8'hAD; 
+      2'b11 : sbox_out = 8'h60; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC6; 
+      2'b01 : sbox_out = 8'h08; 
+      2'b10 : sbox_out = 8'h04; 
+      2'b11 : sbox_out = 8'h02; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE8; 
+      2'b01 : sbox_out = 8'hF5; 
+      2'b10 : sbox_out = 8'h4F; 
+      2'b11 : sbox_out = 8'hA4; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF3; 
+      2'b01 : sbox_out = 8'hC0; 
+      2'b10 : sbox_out = 8'hCE; 
+      2'b11 : sbox_out = 8'h43; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h25; 
+      2'b01 : sbox_out = 8'h1C; 
+      2'b10 : sbox_out = 8'h21; 
+      2'b11 : sbox_out = 8'h33; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h0F; 
+      2'b01 : sbox_out = 8'hAF; 
+      2'b10 : sbox_out = 8'h47; 
+      2'b11 : sbox_out = 8'hED; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h66; 
+      2'b01 : sbox_out = 8'h63; 
+      2'b10 : sbox_out = 8'h93; 
+      2'b11 : sbox_out = 8'hAA; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+end 
+
+endmodule 
+
+//INVERSE SBOX 2
+module kalyna_inv_sbox_2 (sbox_in, sbox_out); 
+
+input [7:0] sbox_in; 
+output reg [7:0] sbox_out; 
+
+always @ (*) begin 
+  case (sbox_in) 
+    8'b00000000 : sbox_out = 8'h45; 
+    8'b00000001 : sbox_out = 8'hD4; 
+    8'b00000010 : sbox_out = 8'h0B; 
+    8'b00000011 : sbox_out = 8'h43; 
+    8'b00000100 : sbox_out = 8'hF1; 
+    8'b00000101 : sbox_out = 8'h72; 
+    8'b00000110 : sbox_out = 8'hED; 
+    8'b00000111 : sbox_out = 8'hA4; 
+    8'b00001000 : sbox_out = 8'hC2; 
+    8'b00001001 : sbox_out = 8'h38; 
+    8'b00001010 : sbox_out = 8'hE6; 
+    8'b00001011 : sbox_out = 8'h71; 
+    8'b00001100 : sbox_out = 8'hFD; 
+    8'b00001101 : sbox_out = 8'hB6; 
+    8'b00001110 : sbox_out = 8'h3A; 
+    8'b00001111 : sbox_out = 8'h95; 
+
+    8'b00010000 : sbox_out = 8'h50; 
+    8'b00010001 : sbox_out = 8'h44; 
+    8'b00010010 : sbox_out = 8'h4B; 
+    8'b00010011 : sbox_out = 8'hE2; 
+    8'b00010100 : sbox_out = 8'h74; 
+    8'b00010101 : sbox_out = 8'h6B; 
+    8'b00010110 : sbox_out = 8'h1E; 
+    8'b00010111 : sbox_out = 8'h11; 
+    8'b00011000 : sbox_out = 8'h5A; 
+    8'b00011001 : sbox_out = 8'hC6; 
+    8'b00011010 : sbox_out = 8'hB4; 
+    8'b00011011 : sbox_out = 8'hD8; 
+    8'b00011100 : sbox_out = 8'hA5; 
+    8'b00011101 : sbox_out = 8'h8A; 
+    8'b00011110 : sbox_out = 8'h70; 
+    8'b00011111 : sbox_out = 8'hA3; 
+
+    8'b00100000 : sbox_out = 8'hA8; 
+    8'b00100001 : sbox_out = 8'hFA; 
+    8'b00100010 : sbox_out = 8'h05; 
+    8'b00100011 : sbox_out = 8'hD9; 
+    8'b00100100 : sbox_out = 8'h97; 
+    8'b00100101 : sbox_out = 8'h40; 
+    8'b00100110 : sbox_out = 8'hC9; 
+    8'b00100111 : sbox_out = 8'h90; 
+    8'b00101000 : sbox_out = 8'h98; 
+    8'b00101001 : sbox_out = 8'h8F; 
+    8'b00101010 : sbox_out = 8'hDC; 
+    8'b00101011 : sbox_out = 8'h12; 
+    8'b00101100 : sbox_out = 8'h31; 
+    8'b00101101 : sbox_out = 8'h2C; 
+    8'b00101110 : sbox_out = 8'h47; 
+    8'b00101111 : sbox_out = 8'h6A; 
+
+    8'b00110000 : sbox_out = 8'h99; 
+    8'b00110001 : sbox_out = 8'hAE; 
+    8'b00110010 : sbox_out = 8'hC8; 
+    8'b00110011 : sbox_out = 8'h7F; 
+    8'b00110100 : sbox_out = 8'hF9; 
+    8'b00110101 : sbox_out = 8'h4F; 
+    8'b00110110 : sbox_out = 8'h5D; 
+    8'b00110111 : sbox_out = 8'h96; 
+    8'b00111000 : sbox_out = 8'h6F; 
+    8'b00111001 : sbox_out = 8'hF4; 
+    8'b00111010 : sbox_out = 8'hB3; 
+    8'b00111011 : sbox_out = 8'h39; 
+    8'b00111100 : sbox_out = 8'h21; 
+    8'b00111101 : sbox_out = 8'hDA; 
+    8'b00111110 : sbox_out = 8'h9C; 
+    8'b00111111 : sbox_out = 8'h85; 
+
+    8'b01000000 : sbox_out = 8'h9E; 
+    8'b01000001 : sbox_out = 8'h3B; 
+    8'b01000010 : sbox_out = 8'hF0; 
+    8'b01000011 : sbox_out = 8'hBF; 
+    8'b01000100 : sbox_out = 8'hEF; 
+    8'b01000101 : sbox_out = 8'h06; 
+    8'b01000110 : sbox_out = 8'hEE; 
+    8'b01000111 : sbox_out = 8'hE5; 
+    8'b01001000 : sbox_out = 8'h5F; 
+    8'b01001001 : sbox_out = 8'h20; 
+    8'b01001010 : sbox_out = 8'h10; 
+    8'b01001011 : sbox_out = 8'hCC; 
+    8'b01001100 : sbox_out = 8'h3C; 
+    8'b01001101 : sbox_out = 8'h54; 
+    8'b01001110 : sbox_out = 8'h4A; 
+    8'b01001111 : sbox_out = 8'h52; 
+
+    8'b01010000 : sbox_out = 8'h94; 
+    8'b01010001 : sbox_out = 8'h0E; 
+    8'b01010010 : sbox_out = 8'hC0; 
+    8'b01010011 : sbox_out = 8'h28; 
+    8'b01010100 : sbox_out = 8'hF6; 
+    8'b01010101 : sbox_out = 8'h56; 
+    8'b01010110 : sbox_out = 8'h60; 
+    8'b01010111 : sbox_out = 8'hA2; 
+    8'b01011000 : sbox_out = 8'hE3; 
+    8'b01011001 : sbox_out = 8'h0F; 
+    8'b01011010 : sbox_out = 8'hEC; 
+    8'b01011011 : sbox_out = 8'h9D; 
+    8'b01011100 : sbox_out = 8'h24; 
+    8'b01011101 : sbox_out = 8'h83; 
+    8'b01011110 : sbox_out = 8'h7E; 
+    8'b01011111 : sbox_out = 8'hD5; 
+
+    8'b01100000 : sbox_out = 8'h7C; 
+    8'b01100001 : sbox_out = 8'hEB; 
+    8'b01100010 : sbox_out = 8'h18; 
+    8'b01100011 : sbox_out = 8'hD7; 
+    8'b01100100 : sbox_out = 8'hCD; 
+    8'b01100101 : sbox_out = 8'hDD; 
+    8'b01100110 : sbox_out = 8'h78; 
+    8'b01100111 : sbox_out = 8'hFF; 
+    8'b01101000 : sbox_out = 8'hDB; 
+    8'b01101001 : sbox_out = 8'hA1; 
+    8'b01101010 : sbox_out = 8'h09; 
+    8'b01101011 : sbox_out = 8'hD0; 
+    8'b01101100 : sbox_out = 8'h76; 
+    8'b01101101 : sbox_out = 8'h84; 
+    8'b01101110 : sbox_out = 8'h75; 
+    8'b01101111 : sbox_out = 8'hBB; 
+
+    8'b01110000 : sbox_out = 8'h1D; 
+    8'b01110001 : sbox_out = 8'h1A; 
+    8'b01110010 : sbox_out = 8'h2F; 
+    8'b01110011 : sbox_out = 8'hB0; 
+    8'b01110100 : sbox_out = 8'hFE; 
+    8'b01110101 : sbox_out = 8'hD6; 
+    8'b01110110 : sbox_out = 8'h34; 
+    8'b01110111 : sbox_out = 8'h63; 
+    8'b01111000 : sbox_out = 8'h35; 
+    8'b01111001 : sbox_out = 8'hD2; 
+    8'b01111010 : sbox_out = 8'h2A; 
+    8'b01111011 : sbox_out = 8'h59; 
+    8'b01111100 : sbox_out = 8'h6D; 
+    8'b01111101 : sbox_out = 8'h4D; 
+    8'b01111110 : sbox_out = 8'h77; 
+    8'b01111111 : sbox_out = 8'hE7; 
+
+    8'b10000000 : sbox_out = 8'h8E; 
+    8'b10000001 : sbox_out = 8'h61; 
+    8'b10000010 : sbox_out = 8'hCF; 
+    8'b10000011 : sbox_out = 8'h9F; 
+    8'b10000100 : sbox_out = 8'hCE; 
+    8'b10000101 : sbox_out = 8'h27; 
+    8'b10000110 : sbox_out = 8'hF5; 
+    8'b10000111 : sbox_out = 8'h80; 
+    8'b10001000 : sbox_out = 8'h86; 
+    8'b10001001 : sbox_out = 8'hC7; 
+    8'b10001010 : sbox_out = 8'hA6; 
+    8'b10001011 : sbox_out = 8'hFB; 
+    8'b10001100 : sbox_out = 8'hF8; 
+    8'b10001101 : sbox_out = 8'h87; 
+    8'b10001110 : sbox_out = 8'hAB; 
+    8'b10001111 : sbox_out = 8'h62; 
+
+    8'b10010000 : sbox_out = 8'h3F; 
+    8'b10010001 : sbox_out = 8'hDF; 
+    8'b10010010 : sbox_out = 8'h48; 
+    8'b10010011 : sbox_out = 8'h00; 
+    8'b10010100 : sbox_out = 8'h14; 
+    8'b10010101 : sbox_out = 8'h9A; 
+    8'b10010110 : sbox_out = 8'hBD; 
+    8'b10010111 : sbox_out = 8'h5B; 
+    8'b10011000 : sbox_out = 8'h04; 
+    8'b10011001 : sbox_out = 8'h92; 
+    8'b10011010 : sbox_out = 8'h02; 
+    8'b10011011 : sbox_out = 8'h25; 
+    8'b10011100 : sbox_out = 8'h65; 
+    8'b10011101 : sbox_out = 8'h4C; 
+    8'b10011110 : sbox_out = 8'h53; 
+    8'b10011111 : sbox_out = 8'h0C; 
+
+    8'b10100000 : sbox_out = 8'hF2; 
+    8'b10100001 : sbox_out = 8'h29; 
+    8'b10100010 : sbox_out = 8'hAF; 
+    8'b10100011 : sbox_out = 8'h17; 
+    8'b10100100 : sbox_out = 8'h6C; 
+    8'b10100101 : sbox_out = 8'h41; 
+    8'b10100110 : sbox_out = 8'h30; 
+    8'b10100111 : sbox_out = 8'hE9; 
+    8'b10101000 : sbox_out = 8'h93; 
+    8'b10101001 : sbox_out = 8'h55; 
+    8'b10101010 : sbox_out = 8'hF7; 
+    8'b10101011 : sbox_out = 8'hAC; 
+    8'b10101100 : sbox_out = 8'h68; 
+    8'b10101101 : sbox_out = 8'h26; 
+    8'b10101110 : sbox_out = 8'hC4; 
+    8'b10101111 : sbox_out = 8'h7D; 
+
+    8'b10110000 : sbox_out = 8'hCA; 
+    8'b10110001 : sbox_out = 8'h7A; 
+    8'b10110010 : sbox_out = 8'h3E; 
+    8'b10110011 : sbox_out = 8'hA0; 
+    8'b10110100 : sbox_out = 8'h37; 
+    8'b10110101 : sbox_out = 8'h03; 
+    8'b10110110 : sbox_out = 8'hC1; 
+    8'b10110111 : sbox_out = 8'h36; 
+    8'b10111000 : sbox_out = 8'h69; 
+    8'b10111001 : sbox_out = 8'h66; 
+    8'b10111010 : sbox_out = 8'h08; 
+    8'b10111011 : sbox_out = 8'h16; 
+    8'b10111100 : sbox_out = 8'hA7; 
+    8'b10111101 : sbox_out = 8'hBC; 
+    8'b10111110 : sbox_out = 8'hC5; 
+    8'b10111111 : sbox_out = 8'hD3; 
+
+    8'b11000000 : sbox_out = 8'h22; 
+    8'b11000001 : sbox_out = 8'hB7; 
+    8'b11000010 : sbox_out = 8'h13; 
+    8'b11000011 : sbox_out = 8'h46; 
+    8'b11000100 : sbox_out = 8'h32; 
+    8'b11000101 : sbox_out = 8'hE8; 
+    8'b11000110 : sbox_out = 8'h57; 
+    8'b11000111 : sbox_out = 8'h88; 
+    8'b11001000 : sbox_out = 8'h2B; 
+    8'b11001001 : sbox_out = 8'h81; 
+    8'b11001010 : sbox_out = 8'hB2; 
+    8'b11001011 : sbox_out = 8'h4E; 
+    8'b11001100 : sbox_out = 8'h64; 
+    8'b11001101 : sbox_out = 8'h1C; 
+    8'b11001110 : sbox_out = 8'hAA; 
+    8'b11001111 : sbox_out = 8'h91; 
+
+    8'b11010000 : sbox_out = 8'h58; 
+    8'b11010001 : sbox_out = 8'h2E; 
+    8'b11010010 : sbox_out = 8'h9B; 
+    8'b11010011 : sbox_out = 8'h5C; 
+    8'b11010100 : sbox_out = 8'h1B; 
+    8'b11010101 : sbox_out = 8'h51; 
+    8'b11010110 : sbox_out = 8'h73; 
+    8'b11010111 : sbox_out = 8'h42; 
+    8'b11011000 : sbox_out = 8'h23; 
+    8'b11011001 : sbox_out = 8'h01; 
+    8'b11011010 : sbox_out = 8'h6E; 
+    8'b11011011 : sbox_out = 8'hF3; 
+    8'b11011100 : sbox_out = 8'h0D; 
+    8'b11011101 : sbox_out = 8'hBE; 
+    8'b11011110 : sbox_out = 8'h3D; 
+    8'b11011111 : sbox_out = 8'h0A; 
+
+    8'b11100000 : sbox_out = 8'h2D; 
+    8'b11100001 : sbox_out = 8'h1F; 
+    8'b11100010 : sbox_out = 8'h67; 
+    8'b11100011 : sbox_out = 8'h33; 
+    8'b11100100 : sbox_out = 8'h19; 
+    8'b11100101 : sbox_out = 8'h7B; 
+    8'b11100110 : sbox_out = 8'h5E; 
+    8'b11100111 : sbox_out = 8'hEA; 
+    8'b11101000 : sbox_out = 8'hDE; 
+    8'b11101001 : sbox_out = 8'h8B; 
+    8'b11101010 : sbox_out = 8'hCB; 
+    8'b11101011 : sbox_out = 8'hA9; 
+    8'b11101100 : sbox_out = 8'h8C; 
+    8'b11101101 : sbox_out = 8'h8D; 
+    8'b11101110 : sbox_out = 8'hAD; 
+    8'b11101111 : sbox_out = 8'h49; 
+
+    8'b11110000 : sbox_out = 8'h82; 
+    8'b11110001 : sbox_out = 8'hE4; 
+    8'b11110010 : sbox_out = 8'hBA; 
+    8'b11110011 : sbox_out = 8'hC3; 
+    8'b11110100 : sbox_out = 8'h15; 
+    8'b11110101 : sbox_out = 8'hD1; 
+    8'b11110110 : sbox_out = 8'hE0; 
+    8'b11110111 : sbox_out = 8'h89; 
+    8'b11111000 : sbox_out = 8'hFC; 
+    8'b11111001 : sbox_out = 8'hB1; 
+    8'b11111010 : sbox_out = 8'hB9; 
+    8'b11111011 : sbox_out = 8'hB5; 
+    8'b11111100 : sbox_out = 8'h07; 
+    8'b11111101 : sbox_out = 8'h79; 
+    8'b11111110 : sbox_out = 8'hB8; 
+    8'b11111111 : sbox_out = 8'hE1; 
+
+    default : sbox_out = 8'd0; 
+  endcase 
+end 
+
+endmodule 
+
+//INVERSE SBOX 2 - Alternative 6
+module kalyna_inv_sbox_2_alt6 (sbox_in, sbox_out); 
+
+input [7:0] sbox_in; 
+output reg [7:0] sbox_out; 
+
+always @ (*) begin 
+  if (sbox_in[7:2] == 6'b000000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h45; 
+      2'b01 : sbox_out = 8'hD4; 
+      2'b10 : sbox_out = 8'h0B; 
+      2'b11 : sbox_out = 8'h43; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF1; 
+      2'b01 : sbox_out = 8'h72; 
+      2'b10 : sbox_out = 8'hED; 
+      2'b11 : sbox_out = 8'hA4; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hC2; 
+      2'b01 : sbox_out = 8'h38; 
+      2'b10 : sbox_out = 8'hE6; 
+      2'b11 : sbox_out = 8'h71; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hFD; 
+      2'b01 : sbox_out = 8'hB6; 
+      2'b10 : sbox_out = 8'h3A; 
+      2'b11 : sbox_out = 8'h95; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h50; 
+      2'b01 : sbox_out = 8'h44; 
+      2'b10 : sbox_out = 8'h4B; 
+      2'b11 : sbox_out = 8'hE2; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h74; 
+      2'b01 : sbox_out = 8'h6B; 
+      2'b10 : sbox_out = 8'h1E; 
+      2'b11 : sbox_out = 8'h11; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h5A; 
+      2'b01 : sbox_out = 8'hC6; 
+      2'b10 : sbox_out = 8'hB4; 
+      2'b11 : sbox_out = 8'hD8; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA5; 
+      2'b01 : sbox_out = 8'h8A; 
+      2'b10 : sbox_out = 8'h70; 
+      2'b11 : sbox_out = 8'hA3; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA8; 
+      2'b01 : sbox_out = 8'hFA; 
+      2'b10 : sbox_out = 8'h05; 
+      2'b11 : sbox_out = 8'hD9; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h97; 
+      2'b01 : sbox_out = 8'h40; 
+      2'b10 : sbox_out = 8'hC9; 
+      2'b11 : sbox_out = 8'h90; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h98; 
+      2'b01 : sbox_out = 8'h8F; 
+      2'b10 : sbox_out = 8'hDC; 
+      2'b11 : sbox_out = 8'h12; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h31; 
+      2'b01 : sbox_out = 8'h2C; 
+      2'b10 : sbox_out = 8'h47; 
+      2'b11 : sbox_out = 8'h6A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h99; 
+      2'b01 : sbox_out = 8'hAE; 
+      2'b10 : sbox_out = 8'hC8; 
+      2'b11 : sbox_out = 8'h7F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF9; 
+      2'b01 : sbox_out = 8'h4F; 
+      2'b10 : sbox_out = 8'h5D; 
+      2'b11 : sbox_out = 8'h96; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6F; 
+      2'b01 : sbox_out = 8'hF4; 
+      2'b10 : sbox_out = 8'hB3; 
+      2'b11 : sbox_out = 8'h39; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h21; 
+      2'b01 : sbox_out = 8'hDA; 
+      2'b10 : sbox_out = 8'h9C; 
+      2'b11 : sbox_out = 8'h85; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h9E; 
+      2'b01 : sbox_out = 8'h3B; 
+      2'b10 : sbox_out = 8'hF0; 
+      2'b11 : sbox_out = 8'hBF; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hEF; 
+      2'b01 : sbox_out = 8'h06; 
+      2'b10 : sbox_out = 8'hEE; 
+      2'b11 : sbox_out = 8'hE5; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h5F; 
+      2'b01 : sbox_out = 8'h20; 
+      2'b10 : sbox_out = 8'h10; 
+      2'b11 : sbox_out = 8'hCC; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h3C; 
+      2'b01 : sbox_out = 8'h54; 
+      2'b10 : sbox_out = 8'h4A; 
+      2'b11 : sbox_out = 8'h52; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h94; 
+      2'b01 : sbox_out = 8'h0E; 
+      2'b10 : sbox_out = 8'hC0; 
+      2'b11 : sbox_out = 8'h28; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF6; 
+      2'b01 : sbox_out = 8'h56; 
+      2'b10 : sbox_out = 8'h60; 
+      2'b11 : sbox_out = 8'hA2; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE3; 
+      2'b01 : sbox_out = 8'h0F; 
+      2'b10 : sbox_out = 8'hEC; 
+      2'b11 : sbox_out = 8'h9D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h24; 
+      2'b01 : sbox_out = 8'h83; 
+      2'b10 : sbox_out = 8'h7E; 
+      2'b11 : sbox_out = 8'hD5; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h7C; 
+      2'b01 : sbox_out = 8'hEB; 
+      2'b10 : sbox_out = 8'h18; 
+      2'b11 : sbox_out = 8'hD7; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hCD; 
+      2'b01 : sbox_out = 8'hDD; 
+      2'b10 : sbox_out = 8'h78; 
+      2'b11 : sbox_out = 8'hFF; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hDB; 
+      2'b01 : sbox_out = 8'hA1; 
+      2'b10 : sbox_out = 8'h09; 
+      2'b11 : sbox_out = 8'hD0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h76; 
+      2'b01 : sbox_out = 8'h84; 
+      2'b10 : sbox_out = 8'h75; 
+      2'b11 : sbox_out = 8'hBB; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h1D; 
+      2'b01 : sbox_out = 8'h1A; 
+      2'b10 : sbox_out = 8'h2F; 
+      2'b11 : sbox_out = 8'hB0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hFE; 
+      2'b01 : sbox_out = 8'hD6; 
+      2'b10 : sbox_out = 8'h34; 
+      2'b11 : sbox_out = 8'h63; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h35; 
+      2'b01 : sbox_out = 8'hD2; 
+      2'b10 : sbox_out = 8'h2A; 
+      2'b11 : sbox_out = 8'h59; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6D; 
+      2'b01 : sbox_out = 8'h4D; 
+      2'b10 : sbox_out = 8'h77; 
+      2'b11 : sbox_out = 8'hE7; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h8E; 
+      2'b01 : sbox_out = 8'h61; 
+      2'b10 : sbox_out = 8'hCF; 
+      2'b11 : sbox_out = 8'h9F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hCE; 
+      2'b01 : sbox_out = 8'h27; 
+      2'b10 : sbox_out = 8'hF5; 
+      2'b11 : sbox_out = 8'h80; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h86; 
+      2'b01 : sbox_out = 8'hC7; 
+      2'b10 : sbox_out = 8'hA6; 
+      2'b11 : sbox_out = 8'hFB; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF8; 
+      2'b01 : sbox_out = 8'h87; 
+      2'b10 : sbox_out = 8'hAB; 
+      2'b11 : sbox_out = 8'h62; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h3F; 
+      2'b01 : sbox_out = 8'hDF; 
+      2'b10 : sbox_out = 8'h48; 
+      2'b11 : sbox_out = 8'h00; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h14; 
+      2'b01 : sbox_out = 8'h9A; 
+      2'b10 : sbox_out = 8'hBD; 
+      2'b11 : sbox_out = 8'h5B; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h04; 
+      2'b01 : sbox_out = 8'h92; 
+      2'b10 : sbox_out = 8'h02; 
+      2'b11 : sbox_out = 8'h25; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h65; 
+      2'b01 : sbox_out = 8'h4C; 
+      2'b10 : sbox_out = 8'h53; 
+      2'b11 : sbox_out = 8'h0C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF2; 
+      2'b01 : sbox_out = 8'h29; 
+      2'b10 : sbox_out = 8'hAF; 
+      2'b11 : sbox_out = 8'h17; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6C; 
+      2'b01 : sbox_out = 8'h41; 
+      2'b10 : sbox_out = 8'h30; 
+      2'b11 : sbox_out = 8'hE9; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h93; 
+      2'b01 : sbox_out = 8'h55; 
+      2'b10 : sbox_out = 8'hF7; 
+      2'b11 : sbox_out = 8'hAC; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h68; 
+      2'b01 : sbox_out = 8'h26; 
+      2'b10 : sbox_out = 8'hC4; 
+      2'b11 : sbox_out = 8'h7D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hCA; 
+      2'b01 : sbox_out = 8'h7A; 
+      2'b10 : sbox_out = 8'h3E; 
+      2'b11 : sbox_out = 8'hA0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h37; 
+      2'b01 : sbox_out = 8'h03; 
+      2'b10 : sbox_out = 8'hC1; 
+      2'b11 : sbox_out = 8'h36; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h69; 
+      2'b01 : sbox_out = 8'h66; 
+      2'b10 : sbox_out = 8'h08; 
+      2'b11 : sbox_out = 8'h16; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA7; 
+      2'b01 : sbox_out = 8'hBC; 
+      2'b10 : sbox_out = 8'hC5; 
+      2'b11 : sbox_out = 8'hD3; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h22; 
+      2'b01 : sbox_out = 8'hB7; 
+      2'b10 : sbox_out = 8'h13; 
+      2'b11 : sbox_out = 8'h46; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h32; 
+      2'b01 : sbox_out = 8'hE8; 
+      2'b10 : sbox_out = 8'h57; 
+      2'b11 : sbox_out = 8'h88; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h2B; 
+      2'b01 : sbox_out = 8'h81; 
+      2'b10 : sbox_out = 8'hB2; 
+      2'b11 : sbox_out = 8'h4E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h64; 
+      2'b01 : sbox_out = 8'h1C; 
+      2'b10 : sbox_out = 8'hAA; 
+      2'b11 : sbox_out = 8'h91; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h58; 
+      2'b01 : sbox_out = 8'h2E; 
+      2'b10 : sbox_out = 8'h9B; 
+      2'b11 : sbox_out = 8'h5C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h1B; 
+      2'b01 : sbox_out = 8'h51; 
+      2'b10 : sbox_out = 8'h73; 
+      2'b11 : sbox_out = 8'h42; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h23; 
+      2'b01 : sbox_out = 8'h01; 
+      2'b10 : sbox_out = 8'h6E; 
+      2'b11 : sbox_out = 8'hF3; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h0D; 
+      2'b01 : sbox_out = 8'hBE; 
+      2'b10 : sbox_out = 8'h3D; 
+      2'b11 : sbox_out = 8'h0A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h2D; 
+      2'b01 : sbox_out = 8'h1F; 
+      2'b10 : sbox_out = 8'h67; 
+      2'b11 : sbox_out = 8'h33; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h19; 
+      2'b01 : sbox_out = 8'h7B; 
+      2'b10 : sbox_out = 8'h5E; 
+      2'b11 : sbox_out = 8'hEA; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hDE; 
+      2'b01 : sbox_out = 8'h8B; 
+      2'b10 : sbox_out = 8'hCB; 
+      2'b11 : sbox_out = 8'hA9; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h8C; 
+      2'b01 : sbox_out = 8'h8D; 
+      2'b10 : sbox_out = 8'hAD; 
+      2'b11 : sbox_out = 8'h49; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h82; 
+      2'b01 : sbox_out = 8'hE4; 
+      2'b10 : sbox_out = 8'hBA; 
+      2'b11 : sbox_out = 8'hC3; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h15; 
+      2'b01 : sbox_out = 8'hD1; 
+      2'b10 : sbox_out = 8'hE0; 
+      2'b11 : sbox_out = 8'h89; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hFC; 
+      2'b01 : sbox_out = 8'hB1; 
+      2'b10 : sbox_out = 8'hB9; 
+      2'b11 : sbox_out = 8'hB5; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h07; 
+      2'b01 : sbox_out = 8'h79; 
+      2'b10 : sbox_out = 8'hB8; 
+      2'b11 : sbox_out = 8'hE1; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+end 
+
+endmodule 
+
+//INVERSE SBOX 3
+module kalyna_inv_sbox_3 (sbox_in, sbox_out); 
+
+input [7:0] sbox_in; 
+output reg [7:0] sbox_out; 
+
+always @ (*) begin 
+  case (sbox_in) 
+    8'b00000000 : sbox_out = 8'hB2; 
+    8'b00000001 : sbox_out = 8'hB6; 
+    8'b00000010 : sbox_out = 8'h23; 
+    8'b00000011 : sbox_out = 8'h11; 
+    8'b00000100 : sbox_out = 8'hA7; 
+    8'b00000101 : sbox_out = 8'h88; 
+    8'b00000110 : sbox_out = 8'hC5; 
+    8'b00000111 : sbox_out = 8'hA6; 
+    8'b00001000 : sbox_out = 8'h39; 
+    8'b00001001 : sbox_out = 8'h8F; 
+    8'b00001010 : sbox_out = 8'hC4; 
+    8'b00001011 : sbox_out = 8'hE8; 
+    8'b00001100 : sbox_out = 8'h73; 
+    8'b00001101 : sbox_out = 8'h22; 
+    8'b00001110 : sbox_out = 8'h43; 
+    8'b00001111 : sbox_out = 8'hC3; 
+
+    8'b00010000 : sbox_out = 8'h82; 
+    8'b00010001 : sbox_out = 8'h27; 
+    8'b00010010 : sbox_out = 8'hCD; 
+    8'b00010011 : sbox_out = 8'h18; 
+    8'b00010100 : sbox_out = 8'h51; 
+    8'b00010101 : sbox_out = 8'h62; 
+    8'b00010110 : sbox_out = 8'h2D; 
+    8'b00010111 : sbox_out = 8'hF7; 
+    8'b00011000 : sbox_out = 8'h5C; 
+    8'b00011001 : sbox_out = 8'h0E; 
+    8'b00011010 : sbox_out = 8'h3B; 
+    8'b00011011 : sbox_out = 8'hFD; 
+    8'b00011100 : sbox_out = 8'hCA; 
+    8'b00011101 : sbox_out = 8'h9B; 
+    8'b00011110 : sbox_out = 8'h0D; 
+    8'b00011111 : sbox_out = 8'h0F; 
+
+    8'b00100000 : sbox_out = 8'h79; 
+    8'b00100001 : sbox_out = 8'h8C; 
+    8'b00100010 : sbox_out = 8'h10; 
+    8'b00100011 : sbox_out = 8'h4C; 
+    8'b00100100 : sbox_out = 8'h74; 
+    8'b00100101 : sbox_out = 8'h1C; 
+    8'b00100110 : sbox_out = 8'h0A; 
+    8'b00100111 : sbox_out = 8'h8E; 
+    8'b00101000 : sbox_out = 8'h7C; 
+    8'b00101001 : sbox_out = 8'h94; 
+    8'b00101010 : sbox_out = 8'h07; 
+    8'b00101011 : sbox_out = 8'hC7; 
+    8'b00101100 : sbox_out = 8'h5E; 
+    8'b00101101 : sbox_out = 8'h14; 
+    8'b00101110 : sbox_out = 8'hA1; 
+    8'b00101111 : sbox_out = 8'h21; 
+
+    8'b00110000 : sbox_out = 8'h57; 
+    8'b00110001 : sbox_out = 8'h50; 
+    8'b00110010 : sbox_out = 8'h4E; 
+    8'b00110011 : sbox_out = 8'hA9; 
+    8'b00110100 : sbox_out = 8'h80; 
+    8'b00110101 : sbox_out = 8'hD9; 
+    8'b00110110 : sbox_out = 8'hEF; 
+    8'b00110111 : sbox_out = 8'h64; 
+    8'b00111000 : sbox_out = 8'h41; 
+    8'b00111001 : sbox_out = 8'hCF; 
+    8'b00111010 : sbox_out = 8'h3C; 
+    8'b00111011 : sbox_out = 8'hEE; 
+    8'b00111100 : sbox_out = 8'h2E; 
+    8'b00111101 : sbox_out = 8'h13; 
+    8'b00111110 : sbox_out = 8'h29; 
+    8'b00111111 : sbox_out = 8'hBA; 
+
+    8'b01000000 : sbox_out = 8'h34; 
+    8'b01000001 : sbox_out = 8'h5A; 
+    8'b01000010 : sbox_out = 8'hAE; 
+    8'b01000011 : sbox_out = 8'h8A; 
+    8'b01000100 : sbox_out = 8'h61; 
+    8'b01000101 : sbox_out = 8'h33; 
+    8'b01000110 : sbox_out = 8'h12; 
+    8'b01000111 : sbox_out = 8'hB9; 
+    8'b01001000 : sbox_out = 8'h55; 
+    8'b01001001 : sbox_out = 8'hA8; 
+    8'b01001010 : sbox_out = 8'h15; 
+    8'b01001011 : sbox_out = 8'h05; 
+    8'b01001100 : sbox_out = 8'hF6; 
+    8'b01001101 : sbox_out = 8'h03; 
+    8'b01001110 : sbox_out = 8'h06; 
+    8'b01001111 : sbox_out = 8'h49; 
+
+    8'b01010000 : sbox_out = 8'hB5; 
+    8'b01010001 : sbox_out = 8'h25; 
+    8'b01010010 : sbox_out = 8'h09; 
+    8'b01010011 : sbox_out = 8'h16; 
+    8'b01010100 : sbox_out = 8'h0C; 
+    8'b01010101 : sbox_out = 8'h2A; 
+    8'b01010110 : sbox_out = 8'h38; 
+    8'b01010111 : sbox_out = 8'hFC; 
+    8'b01011000 : sbox_out = 8'h20; 
+    8'b01011001 : sbox_out = 8'hF4; 
+    8'b01011010 : sbox_out = 8'hE5; 
+    8'b01011011 : sbox_out = 8'h7F; 
+    8'b01011100 : sbox_out = 8'hD7; 
+    8'b01011101 : sbox_out = 8'h31; 
+    8'b01011110 : sbox_out = 8'h2B; 
+    8'b01011111 : sbox_out = 8'h66; 
+
+    8'b01100000 : sbox_out = 8'h6F; 
+    8'b01100001 : sbox_out = 8'hFF; 
+    8'b01100010 : sbox_out = 8'h72; 
+    8'b01100011 : sbox_out = 8'h86; 
+    8'b01100100 : sbox_out = 8'hF0; 
+    8'b01100101 : sbox_out = 8'hA3; 
+    8'b01100110 : sbox_out = 8'h2F; 
+    8'b01100111 : sbox_out = 8'h78; 
+    8'b01101000 : sbox_out = 8'h00; 
+    8'b01101001 : sbox_out = 8'hBC; 
+    8'b01101010 : sbox_out = 8'hCC; 
+    8'b01101011 : sbox_out = 8'hE2; 
+    8'b01101100 : sbox_out = 8'hB0; 
+    8'b01101101 : sbox_out = 8'hF1; 
+    8'b01101110 : sbox_out = 8'h42; 
+    8'b01101111 : sbox_out = 8'hB4; 
+
+    8'b01110000 : sbox_out = 8'h30; 
+    8'b01110001 : sbox_out = 8'h5F; 
+    8'b01110010 : sbox_out = 8'h60; 
+    8'b01110011 : sbox_out = 8'h04; 
+    8'b01110100 : sbox_out = 8'hEC; 
+    8'b01110101 : sbox_out = 8'hA5; 
+    8'b01110110 : sbox_out = 8'hE3; 
+    8'b01110111 : sbox_out = 8'h8B; 
+    8'b01111000 : sbox_out = 8'hE7; 
+    8'b01111001 : sbox_out = 8'h1D; 
+    8'b01111010 : sbox_out = 8'hBF; 
+    8'b01111011 : sbox_out = 8'h84; 
+    8'b01111100 : sbox_out = 8'h7B; 
+    8'b01111101 : sbox_out = 8'hE6; 
+    8'b01111110 : sbox_out = 8'h81; 
+    8'b01111111 : sbox_out = 8'hF8; 
+
+    8'b10000000 : sbox_out = 8'hDE; 
+    8'b10000001 : sbox_out = 8'hD8; 
+    8'b10000010 : sbox_out = 8'hD2; 
+    8'b10000011 : sbox_out = 8'h17; 
+    8'b10000100 : sbox_out = 8'hCE; 
+    8'b10000101 : sbox_out = 8'h4B; 
+    8'b10000110 : sbox_out = 8'h47; 
+    8'b10000111 : sbox_out = 8'hD6; 
+    8'b10001000 : sbox_out = 8'h69; 
+    8'b10001001 : sbox_out = 8'h6C; 
+    8'b10001010 : sbox_out = 8'h19; 
+    8'b10001011 : sbox_out = 8'h99; 
+    8'b10001100 : sbox_out = 8'h9A; 
+    8'b10001101 : sbox_out = 8'h01; 
+    8'b10001110 : sbox_out = 8'hB3; 
+    8'b10001111 : sbox_out = 8'h85; 
+
+    8'b10010000 : sbox_out = 8'hB1; 
+    8'b10010001 : sbox_out = 8'hF9; 
+    8'b10010010 : sbox_out = 8'h59; 
+    8'b10010011 : sbox_out = 8'hC2; 
+    8'b10010100 : sbox_out = 8'h37; 
+    8'b10010101 : sbox_out = 8'hE9; 
+    8'b10010110 : sbox_out = 8'hC8; 
+    8'b10010111 : sbox_out = 8'hA0; 
+    8'b10011000 : sbox_out = 8'hED; 
+    8'b10011001 : sbox_out = 8'h4F; 
+    8'b10011010 : sbox_out = 8'h89; 
+    8'b10011011 : sbox_out = 8'h68; 
+    8'b10011100 : sbox_out = 8'h6D; 
+    8'b10011101 : sbox_out = 8'hD5; 
+    8'b10011110 : sbox_out = 8'h26; 
+    8'b10011111 : sbox_out = 8'h91; 
+
+    8'b10100000 : sbox_out = 8'h87; 
+    8'b10100001 : sbox_out = 8'h58; 
+    8'b10100010 : sbox_out = 8'hBD; 
+    8'b10100011 : sbox_out = 8'hC9; 
+    8'b10100100 : sbox_out = 8'h98; 
+    8'b10100101 : sbox_out = 8'hDC; 
+    8'b10100110 : sbox_out = 8'h75; 
+    8'b10100111 : sbox_out = 8'hC0; 
+    8'b10101000 : sbox_out = 8'h76; 
+    8'b10101001 : sbox_out = 8'hF5; 
+    8'b10101010 : sbox_out = 8'h67; 
+    8'b10101011 : sbox_out = 8'h6B; 
+    8'b10101100 : sbox_out = 8'h7E; 
+    8'b10101101 : sbox_out = 8'hEB; 
+    8'b10101110 : sbox_out = 8'h52; 
+    8'b10101111 : sbox_out = 8'hCB; 
+
+    8'b10110000 : sbox_out = 8'hD1; 
+    8'b10110001 : sbox_out = 8'h5B; 
+    8'b10110010 : sbox_out = 8'h9F; 
+    8'b10110011 : sbox_out = 8'h0B; 
+    8'b10110100 : sbox_out = 8'hDB; 
+    8'b10110101 : sbox_out = 8'h40; 
+    8'b10110110 : sbox_out = 8'h92; 
+    8'b10110111 : sbox_out = 8'h1A; 
+    8'b10111000 : sbox_out = 8'hFA; 
+    8'b10111001 : sbox_out = 8'hAC; 
+    8'b10111010 : sbox_out = 8'hE4; 
+    8'b10111011 : sbox_out = 8'hE1; 
+    8'b10111100 : sbox_out = 8'h71; 
+    8'b10111101 : sbox_out = 8'h1F; 
+    8'b10111110 : sbox_out = 8'h65; 
+    8'b10111111 : sbox_out = 8'h8D; 
+
+    8'b11000000 : sbox_out = 8'h97; 
+    8'b11000001 : sbox_out = 8'h9E; 
+    8'b11000010 : sbox_out = 8'h95; 
+    8'b11000011 : sbox_out = 8'h90; 
+    8'b11000100 : sbox_out = 8'h5D; 
+    8'b11000101 : sbox_out = 8'hB7; 
+    8'b11000110 : sbox_out = 8'hC1; 
+    8'b11000111 : sbox_out = 8'hAF; 
+    8'b11001000 : sbox_out = 8'h54; 
+    8'b11001001 : sbox_out = 8'hFB; 
+    8'b11001010 : sbox_out = 8'h02; 
+    8'b11001011 : sbox_out = 8'hE0; 
+    8'b11001100 : sbox_out = 8'h35; 
+    8'b11001101 : sbox_out = 8'hBB; 
+    8'b11001110 : sbox_out = 8'h3A; 
+    8'b11001111 : sbox_out = 8'h4D; 
+
+    8'b11010000 : sbox_out = 8'hAD; 
+    8'b11010001 : sbox_out = 8'h2C; 
+    8'b11010010 : sbox_out = 8'h3D; 
+    8'b11010011 : sbox_out = 8'h56; 
+    8'b11010100 : sbox_out = 8'h08; 
+    8'b11010101 : sbox_out = 8'h1B; 
+    8'b11010110 : sbox_out = 8'h4A; 
+    8'b11010111 : sbox_out = 8'h93; 
+    8'b11011000 : sbox_out = 8'h6A; 
+    8'b11011001 : sbox_out = 8'hAB; 
+    8'b11011010 : sbox_out = 8'hB8; 
+    8'b11011011 : sbox_out = 8'h7A; 
+    8'b11011100 : sbox_out = 8'hF2; 
+    8'b11011101 : sbox_out = 8'h7D; 
+    8'b11011110 : sbox_out = 8'hDA; 
+    8'b11011111 : sbox_out = 8'h3F; 
+
+    8'b11100000 : sbox_out = 8'hFE; 
+    8'b11100001 : sbox_out = 8'h3E; 
+    8'b11100010 : sbox_out = 8'hBE; 
+    8'b11100011 : sbox_out = 8'hEA; 
+    8'b11100100 : sbox_out = 8'hAA; 
+    8'b11100101 : sbox_out = 8'h44; 
+    8'b11100110 : sbox_out = 8'hC6; 
+    8'b11100111 : sbox_out = 8'hD0; 
+    8'b11101000 : sbox_out = 8'h36; 
+    8'b11101001 : sbox_out = 8'h48; 
+    8'b11101010 : sbox_out = 8'h70; 
+    8'b11101011 : sbox_out = 8'h96; 
+    8'b11101100 : sbox_out = 8'h77; 
+    8'b11101101 : sbox_out = 8'h24; 
+    8'b11101110 : sbox_out = 8'h53; 
+    8'b11101111 : sbox_out = 8'hDF; 
+
+    8'b11110000 : sbox_out = 8'hF3; 
+    8'b11110001 : sbox_out = 8'h83; 
+    8'b11110010 : sbox_out = 8'h28; 
+    8'b11110011 : sbox_out = 8'h32; 
+    8'b11110100 : sbox_out = 8'h45; 
+    8'b11110101 : sbox_out = 8'h1E; 
+    8'b11110110 : sbox_out = 8'hA4; 
+    8'b11110111 : sbox_out = 8'hD3; 
+    8'b11111000 : sbox_out = 8'hA2; 
+    8'b11111001 : sbox_out = 8'h46; 
+    8'b11111010 : sbox_out = 8'h6E; 
+    8'b11111011 : sbox_out = 8'h9C; 
+    8'b11111100 : sbox_out = 8'hDD; 
+    8'b11111101 : sbox_out = 8'h63; 
+    8'b11111110 : sbox_out = 8'hD4; 
+    8'b11111111 : sbox_out = 8'h9D; 
+
+    default : sbox_out = 8'd0; 
+  endcase 
+end 
+
+endmodule 
+
+//INVERSE SBOX 3 - Alternative 6
+module kalyna_inv_sbox_3_alt6 (sbox_in, sbox_out); 
+
+input [7:0] sbox_in; 
+output reg [7:0] sbox_out; 
+
+always @ (*) begin 
+  if (sbox_in[7:2] == 6'b000000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB2; 
+      2'b01 : sbox_out = 8'hB6; 
+      2'b10 : sbox_out = 8'h23; 
+      2'b11 : sbox_out = 8'h11; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA7; 
+      2'b01 : sbox_out = 8'h88; 
+      2'b10 : sbox_out = 8'hC5; 
+      2'b11 : sbox_out = 8'hA6; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h39; 
+      2'b01 : sbox_out = 8'h8F; 
+      2'b10 : sbox_out = 8'hC4; 
+      2'b11 : sbox_out = 8'hE8; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h73; 
+      2'b01 : sbox_out = 8'h22; 
+      2'b10 : sbox_out = 8'h43; 
+      2'b11 : sbox_out = 8'hC3; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h82; 
+      2'b01 : sbox_out = 8'h27; 
+      2'b10 : sbox_out = 8'hCD; 
+      2'b11 : sbox_out = 8'h18; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h51; 
+      2'b01 : sbox_out = 8'h62; 
+      2'b10 : sbox_out = 8'h2D; 
+      2'b11 : sbox_out = 8'hF7; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h5C; 
+      2'b01 : sbox_out = 8'h0E; 
+      2'b10 : sbox_out = 8'h3B; 
+      2'b11 : sbox_out = 8'hFD; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b000111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hCA; 
+      2'b01 : sbox_out = 8'h9B; 
+      2'b10 : sbox_out = 8'h0D; 
+      2'b11 : sbox_out = 8'h0F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h79; 
+      2'b01 : sbox_out = 8'h8C; 
+      2'b10 : sbox_out = 8'h10; 
+      2'b11 : sbox_out = 8'h4C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h74; 
+      2'b01 : sbox_out = 8'h1C; 
+      2'b10 : sbox_out = 8'h0A; 
+      2'b11 : sbox_out = 8'h8E; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h7C; 
+      2'b01 : sbox_out = 8'h94; 
+      2'b10 : sbox_out = 8'h07; 
+      2'b11 : sbox_out = 8'hC7; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h5E; 
+      2'b01 : sbox_out = 8'h14; 
+      2'b10 : sbox_out = 8'hA1; 
+      2'b11 : sbox_out = 8'h21; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h57; 
+      2'b01 : sbox_out = 8'h50; 
+      2'b10 : sbox_out = 8'h4E; 
+      2'b11 : sbox_out = 8'hA9; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h80; 
+      2'b01 : sbox_out = 8'hD9; 
+      2'b10 : sbox_out = 8'hEF; 
+      2'b11 : sbox_out = 8'h64; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h41; 
+      2'b01 : sbox_out = 8'hCF; 
+      2'b10 : sbox_out = 8'h3C; 
+      2'b11 : sbox_out = 8'hEE; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b001111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h2E; 
+      2'b01 : sbox_out = 8'h13; 
+      2'b10 : sbox_out = 8'h29; 
+      2'b11 : sbox_out = 8'hBA; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h34; 
+      2'b01 : sbox_out = 8'h5A; 
+      2'b10 : sbox_out = 8'hAE; 
+      2'b11 : sbox_out = 8'h8A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h61; 
+      2'b01 : sbox_out = 8'h33; 
+      2'b10 : sbox_out = 8'h12; 
+      2'b11 : sbox_out = 8'hB9; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h55; 
+      2'b01 : sbox_out = 8'hA8; 
+      2'b10 : sbox_out = 8'h15; 
+      2'b11 : sbox_out = 8'h05; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF6; 
+      2'b01 : sbox_out = 8'h03; 
+      2'b10 : sbox_out = 8'h06; 
+      2'b11 : sbox_out = 8'h49; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB5; 
+      2'b01 : sbox_out = 8'h25; 
+      2'b10 : sbox_out = 8'h09; 
+      2'b11 : sbox_out = 8'h16; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h0C; 
+      2'b01 : sbox_out = 8'h2A; 
+      2'b10 : sbox_out = 8'h38; 
+      2'b11 : sbox_out = 8'hFC; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h20; 
+      2'b01 : sbox_out = 8'hF4; 
+      2'b10 : sbox_out = 8'hE5; 
+      2'b11 : sbox_out = 8'h7F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b010111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hD7; 
+      2'b01 : sbox_out = 8'h31; 
+      2'b10 : sbox_out = 8'h2B; 
+      2'b11 : sbox_out = 8'h66; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6F; 
+      2'b01 : sbox_out = 8'hFF; 
+      2'b10 : sbox_out = 8'h72; 
+      2'b11 : sbox_out = 8'h86; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF0; 
+      2'b01 : sbox_out = 8'hA3; 
+      2'b10 : sbox_out = 8'h2F; 
+      2'b11 : sbox_out = 8'h78; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h00; 
+      2'b01 : sbox_out = 8'hBC; 
+      2'b10 : sbox_out = 8'hCC; 
+      2'b11 : sbox_out = 8'hE2; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB0; 
+      2'b01 : sbox_out = 8'hF1; 
+      2'b10 : sbox_out = 8'h42; 
+      2'b11 : sbox_out = 8'hB4; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h30; 
+      2'b01 : sbox_out = 8'h5F; 
+      2'b10 : sbox_out = 8'h60; 
+      2'b11 : sbox_out = 8'h04; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hEC; 
+      2'b01 : sbox_out = 8'hA5; 
+      2'b10 : sbox_out = 8'hE3; 
+      2'b11 : sbox_out = 8'h8B; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hE7; 
+      2'b01 : sbox_out = 8'h1D; 
+      2'b10 : sbox_out = 8'hBF; 
+      2'b11 : sbox_out = 8'h84; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b011111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h7B; 
+      2'b01 : sbox_out = 8'hE6; 
+      2'b10 : sbox_out = 8'h81; 
+      2'b11 : sbox_out = 8'hF8; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hDE; 
+      2'b01 : sbox_out = 8'hD8; 
+      2'b10 : sbox_out = 8'hD2; 
+      2'b11 : sbox_out = 8'h17; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hCE; 
+      2'b01 : sbox_out = 8'h4B; 
+      2'b10 : sbox_out = 8'h47; 
+      2'b11 : sbox_out = 8'hD6; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h69; 
+      2'b01 : sbox_out = 8'h6C; 
+      2'b10 : sbox_out = 8'h19; 
+      2'b11 : sbox_out = 8'h99; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h9A; 
+      2'b01 : sbox_out = 8'h01; 
+      2'b10 : sbox_out = 8'hB3; 
+      2'b11 : sbox_out = 8'h85; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hB1; 
+      2'b01 : sbox_out = 8'hF9; 
+      2'b10 : sbox_out = 8'h59; 
+      2'b11 : sbox_out = 8'hC2; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h37; 
+      2'b01 : sbox_out = 8'hE9; 
+      2'b10 : sbox_out = 8'hC8; 
+      2'b11 : sbox_out = 8'hA0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hED; 
+      2'b01 : sbox_out = 8'h4F; 
+      2'b10 : sbox_out = 8'h89; 
+      2'b11 : sbox_out = 8'h68; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b100111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6D; 
+      2'b01 : sbox_out = 8'hD5; 
+      2'b10 : sbox_out = 8'h26; 
+      2'b11 : sbox_out = 8'h91; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h87; 
+      2'b01 : sbox_out = 8'h58; 
+      2'b10 : sbox_out = 8'hBD; 
+      2'b11 : sbox_out = 8'hC9; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h98; 
+      2'b01 : sbox_out = 8'hDC; 
+      2'b10 : sbox_out = 8'h75; 
+      2'b11 : sbox_out = 8'hC0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h76; 
+      2'b01 : sbox_out = 8'hF5; 
+      2'b10 : sbox_out = 8'h67; 
+      2'b11 : sbox_out = 8'h6B; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h7E; 
+      2'b01 : sbox_out = 8'hEB; 
+      2'b10 : sbox_out = 8'h52; 
+      2'b11 : sbox_out = 8'hCB; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hD1; 
+      2'b01 : sbox_out = 8'h5B; 
+      2'b10 : sbox_out = 8'h9F; 
+      2'b11 : sbox_out = 8'h0B; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hDB; 
+      2'b01 : sbox_out = 8'h40; 
+      2'b10 : sbox_out = 8'h92; 
+      2'b11 : sbox_out = 8'h1A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hFA; 
+      2'b01 : sbox_out = 8'hAC; 
+      2'b10 : sbox_out = 8'hE4; 
+      2'b11 : sbox_out = 8'hE1; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b101111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h71; 
+      2'b01 : sbox_out = 8'h1F; 
+      2'b10 : sbox_out = 8'h65; 
+      2'b11 : sbox_out = 8'h8D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h97; 
+      2'b01 : sbox_out = 8'h9E; 
+      2'b10 : sbox_out = 8'h95; 
+      2'b11 : sbox_out = 8'h90; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h5D; 
+      2'b01 : sbox_out = 8'hB7; 
+      2'b10 : sbox_out = 8'hC1; 
+      2'b11 : sbox_out = 8'hAF; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h54; 
+      2'b01 : sbox_out = 8'hFB; 
+      2'b10 : sbox_out = 8'h02; 
+      2'b11 : sbox_out = 8'hE0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h35; 
+      2'b01 : sbox_out = 8'hBB; 
+      2'b10 : sbox_out = 8'h3A; 
+      2'b11 : sbox_out = 8'h4D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hAD; 
+      2'b01 : sbox_out = 8'h2C; 
+      2'b10 : sbox_out = 8'h3D; 
+      2'b11 : sbox_out = 8'h56; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h08; 
+      2'b01 : sbox_out = 8'h1B; 
+      2'b10 : sbox_out = 8'h4A; 
+      2'b11 : sbox_out = 8'h93; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h6A; 
+      2'b01 : sbox_out = 8'hAB; 
+      2'b10 : sbox_out = 8'hB8; 
+      2'b11 : sbox_out = 8'h7A; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b110111) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF2; 
+      2'b01 : sbox_out = 8'h7D; 
+      2'b10 : sbox_out = 8'hDA; 
+      2'b11 : sbox_out = 8'h3F; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111000) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hFE; 
+      2'b01 : sbox_out = 8'h3E; 
+      2'b10 : sbox_out = 8'hBE; 
+      2'b11 : sbox_out = 8'hEA; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111001) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hAA; 
+      2'b01 : sbox_out = 8'h44; 
+      2'b10 : sbox_out = 8'hC6; 
+      2'b11 : sbox_out = 8'hD0; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111010) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h36; 
+      2'b01 : sbox_out = 8'h48; 
+      2'b10 : sbox_out = 8'h70; 
+      2'b11 : sbox_out = 8'h96; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111011) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h77; 
+      2'b01 : sbox_out = 8'h24; 
+      2'b10 : sbox_out = 8'h53; 
+      2'b11 : sbox_out = 8'hDF; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111100) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hF3; 
+      2'b01 : sbox_out = 8'h83; 
+      2'b10 : sbox_out = 8'h28; 
+      2'b11 : sbox_out = 8'h32; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111101) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'h45; 
+      2'b01 : sbox_out = 8'h1E; 
+      2'b10 : sbox_out = 8'hA4; 
+      2'b11 : sbox_out = 8'hD3; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else if (sbox_in[7:2] == 6'b111110) begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hA2; 
+      2'b01 : sbox_out = 8'h46; 
+      2'b10 : sbox_out = 8'h6E; 
+      2'b11 : sbox_out = 8'h9C; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+  else begin 
+    case (sbox_in[1:0]) 
+      2'b00 : sbox_out = 8'hDD; 
+      2'b01 : sbox_out = 8'h63; 
+      2'b10 : sbox_out = 8'hD4; 
+      2'b11 : sbox_out = 8'h9D; 
+      default : sbox_out = 8'd0; 
+    endcase 
+  end 
+end 
+
+endmodule 
+
+//64-bit XOR - First-Order Masking
+module kalyna_xor64_fom (s1_A, s2_A, s1_B, s2_B, s1_Z, s2_Z); 
+
+input [63:0] s1_A, s2_A; 
+input [63:0] s1_B, s2_B; 
+output [63:0] s1_Z, s2_Z; 
+
+wire [63:0] s1_A, s2_A; 
+wire [63:0] s1_B, s2_B; 
+wire [63:0] s1_Z, s2_Z; 
+
+//  XOR2D0 g925__2398(.A1 (B[47]), .A2 (A[47]), .Z (Z[47]));  
+assign s1_Z[47] = s1_B[47] ^ s1_A[47]; 
+assign s2_Z[47] = s2_B[47] ^ s2_A[47]; 
+
+//  XOR2D0 g936__5107(.A1 (B[62]), .A2 (A[62]), .Z (Z[62]));  
+assign s1_Z[62] = s1_B[62] ^ s1_A[62]; 
+assign s2_Z[62] = s2_B[62] ^ s2_A[62]; 
+
+//  XOR2D0 g898__6260(.A1 (B[61]), .A2 (A[61]), .Z (Z[61]));  
+assign s1_Z[61] = s1_B[61] ^ s1_A[61]; 
+assign s2_Z[61] = s2_B[61] ^ s2_A[61]; 
+
+//  XOR2D0 g899__4319(.A1 (B[60]), .A2 (A[60]), .Z (Z[60]));  
+assign s1_Z[60] = s1_B[60] ^ s1_A[60]; 
+assign s2_Z[60] = s2_B[60] ^ s2_A[60]; 
+
+//  XOR2D0 g923__8428(.A1 (B[59]), .A2 (A[59]), .Z (Z[59]));  
+assign s1_Z[59] = s1_B[59] ^ s1_A[59]; 
+assign s2_Z[59] = s2_B[59] ^ s2_A[59]; 
+
+//  XOR2D0 g937__5526(.A1 (B[58]), .A2 (A[58]), .Z (Z[58]));  
+assign s1_Z[58] = s1_B[58] ^ s1_A[58]; 
+assign s2_Z[58] = s2_B[58] ^ s2_A[58]; 
+
+//  XOR2D0 g949__6783(.A1 (B[57]), .A2 (A[57]), .Z (Z[57]));  
+assign s1_Z[57] = s1_B[57] ^ s1_A[57]; 
+assign s2_Z[57] = s2_B[57] ^ s2_A[57]; 
+
+//  XOR2D0 g912__3680(.A1 (B[56]), .A2 (A[56]), .Z (Z[56]));  
+assign s1_Z[56] = s1_B[56] ^ s1_A[56]; 
+assign s2_Z[56] = s2_B[56] ^ s2_A[56]; 
+
+//  XOR2D0 g924__1617(.A1 (B[55]), .A2 (A[55]), .Z (Z[55]));  
+assign s1_Z[55] = s1_B[55] ^ s1_A[55]; 
+assign s2_Z[55] = s2_B[55] ^ s2_A[55]; 
+
+//  XOR2D0 g930__2802(.A1 (B[54]), .A2 (A[54]), .Z (Z[54]));  
+assign s1_Z[54] = s1_B[54] ^ s1_A[54]; 
+assign s2_Z[54] = s2_B[54] ^ s2_A[54]; 
+
+//  XOR2D0 g938__1705(.A1 (B[53]), .A2 (A[53]), .Z (Z[53]));  
+assign s1_Z[53] = s1_B[53] ^ s1_A[53]; 
+assign s2_Z[53] = s2_B[53] ^ s2_A[53]; 
+
+//  XOR2D0 g950__5122(.A1 (B[52]), .A2 (A[52]), .Z (Z[52]));  
+assign s1_Z[52] = s1_B[52] ^ s1_A[52]; 
+assign s2_Z[52] = s2_B[52] ^ s2_A[52]; 
+
+//  XOR2D0 g955__8246(.A1 (B[51]), .A2 (A[51]), .Z (Z[51]));  
+assign s1_Z[51] = s1_B[51] ^ s1_A[51]; 
+assign s2_Z[51] = s2_B[51] ^ s2_A[51]; 
+
+//  XOR2D0 g900__7098(.A1 (B[50]), .A2 (A[50]), .Z (Z[50]));  
+assign s1_Z[50] = s1_B[50] ^ s1_A[50]; 
+assign s2_Z[50] = s2_B[50] ^ s2_A[50]; 
+
+//  XOR2D0 g906__6131(.A1 (B[49]), .A2 (A[49]), .Z (Z[49]));  
+assign s1_Z[49] = s1_B[49] ^ s1_A[49]; 
+assign s2_Z[49] = s2_B[49] ^ s2_A[49]; 
+
+//  XOR2D0 g918__1881(.A1 (B[48]), .A2 (A[48]), .Z (Z[48]));  
+assign s1_Z[48] = s1_B[48] ^ s1_A[48]; 
+assign s2_Z[48] = s2_B[48] ^ s2_A[48]; 
+
+//  XOR2D0 g913__5115(.A1 (B[63]), .A2 (A[63]), .Z (Z[63]));  
+assign s1_Z[63] = s1_B[63] ^ s1_A[63]; 
+assign s2_Z[63] = s2_B[63] ^ s2_A[63]; 
+
+//  XOR2D0 g928__7482(.A1 (B[46]), .A2 (A[46]), .Z (Z[46]));  
+assign s1_Z[46] = s1_B[46] ^ s1_A[46]; 
+assign s2_Z[46] = s2_B[46] ^ s2_A[46]; 
+
+//  XOR2D0 g931__4733(.A1 (B[45]), .A2 (A[45]), .Z (Z[45]));  
+assign s1_Z[45] = s1_B[45] ^ s1_A[45]; 
+assign s2_Z[45] = s2_B[45] ^ s2_A[45]; 
+
+//  XOR2D0 g939__6161(.A1 (B[44]), .A2 (A[44]), .Z (Z[44]));  
+assign s1_Z[44] = s1_B[44] ^ s1_A[44]; 
+assign s2_Z[44] = s2_B[44] ^ s2_A[44]; 
+
+//  XOR2D0 g941__9315(.A1 (B[43]), .A2 (A[43]), .Z (Z[43]));  
+assign s1_Z[43] = s1_B[43] ^ s1_A[43]; 
+assign s2_Z[43] = s2_B[43] ^ s2_A[43]; 
+
+//  XOR2D0 g944__9945(.A1 (B[42]), .A2 (A[42]), .Z (Z[42]));  
+assign s1_Z[42] = s1_B[42] ^ s1_A[42]; 
+assign s2_Z[42] = s2_B[42] ^ s2_A[42]; 
+
+//  XOR2D0 g946__2883(.A1 (B[41]), .A2 (A[41]), .Z (Z[41]));  
+assign s1_Z[41] = s1_B[41] ^ s1_A[41]; 
+assign s2_Z[41] = s2_B[41] ^ s2_A[41]; 
+
+//  XOR2D0 g953__2346(.A1 (B[40]), .A2 (A[40]), .Z (Z[40]));  
+assign s1_Z[40] = s1_B[40] ^ s1_A[40]; 
+assign s2_Z[40] = s2_B[40] ^ s2_A[40]; 
+
+//  XOR2D0 g956__1666(.A1 (B[39]), .A2 (A[39]), .Z (Z[39]));  
+assign s1_Z[39] = s1_B[39] ^ s1_A[39]; 
+assign s2_Z[39] = s2_B[39] ^ s2_A[39]; 
+
+//  XOR2D0 g959__7410(.A1 (B[38]), .A2 (A[38]), .Z (Z[38]));  
+assign s1_Z[38] = s1_B[38] ^ s1_A[38]; 
+assign s2_Z[38] = s2_B[38] ^ s2_A[38]; 
+
+//  XOR2D0 g901__6417(.A1 (B[37]), .A2 (A[37]), .Z (Z[37]));  
+assign s1_Z[37] = s1_B[37] ^ s1_A[37]; 
+assign s2_Z[37] = s2_B[37] ^ s2_A[37]; 
+
+//  XOR2D0 g907__5477(.A1 (B[36]), .A2 (A[36]), .Z (Z[36]));  
+assign s1_Z[36] = s1_B[36] ^ s1_A[36]; 
+assign s2_Z[36] = s2_B[36] ^ s2_A[36]; 
+
+//  XOR2D0 g909__2398(.A1 (B[35]), .A2 (A[35]), .Z (Z[35]));  
+assign s1_Z[35] = s1_B[35] ^ s1_A[35]; 
+assign s2_Z[35] = s2_B[35] ^ s2_A[35]; 
+
+//  XOR2D0 g897__5107(.A1 (B[34]), .A2 (A[34]), .Z (Z[34]));  
+assign s1_Z[34] = s1_B[34] ^ s1_A[34]; 
+assign s2_Z[34] = s2_B[34] ^ s2_A[34]; 
+
+//  XOR2D0 g915__6260(.A1 (B[33]), .A2 (A[33]), .Z (Z[33]));  
+assign s1_Z[33] = s1_B[33] ^ s1_A[33]; 
+assign s2_Z[33] = s2_B[33] ^ s2_A[33]; 
+
+//  XOR2D0 g921__4319(.A1 (B[32]), .A2 (A[32]), .Z (Z[32]));  
+assign s1_Z[32] = s1_B[32] ^ s1_A[32]; 
+assign s2_Z[32] = s2_B[32] ^ s2_A[32]; 
+
+//  XOR2D0 g957__8428(.A1 (B[15]), .A2 (A[15]), .Z (Z[15]));  
+assign s1_Z[15] = s1_B[15] ^ s1_A[15]; 
+assign s2_Z[15] = s2_B[15] ^ s2_A[15]; 
+
+//  XOR2D0 g927__5526(.A1 (B[30]), .A2 (A[30]), .Z (Z[30]));  
+assign s1_Z[30] = s1_B[30] ^ s1_A[30]; 
+assign s2_Z[30] = s2_B[30] ^ s2_A[30]; 
+
+//  XOR2D0 g945__6783(.A1 (B[29]), .A2 (A[29]), .Z (Z[29]));  
+assign s1_Z[29] = s1_B[29] ^ s1_A[29]; 
+assign s2_Z[29] = s2_B[29] ^ s2_A[29]; 
+
+//  XOR2D0 g932__3680(.A1 (B[28]), .A2 (A[28]), .Z (Z[28]));  
+assign s1_Z[28] = s1_B[28] ^ s1_A[28]; 
+assign s2_Z[28] = s2_B[28] ^ s2_A[28]; 
+
+//  XOR2D0 g933__1617(.A1 (B[27]), .A2 (A[27]), .Z (Z[27]));  
+assign s1_Z[27] = s1_B[27] ^ s1_A[27]; 
+assign s2_Z[27] = s2_B[27] ^ s2_A[27]; 
+
+//  XOR2D0 g934__2802(.A1 (B[26]), .A2 (A[26]), .Z (Z[26]));  
+assign s1_Z[26] = s1_B[26] ^ s1_A[26]; 
+assign s2_Z[26] = s2_B[26] ^ s2_A[26]; 
+
+//  XOR2D0 g935__1705(.A1 (B[25]), .A2 (A[25]), .Z (Z[25]));  
+assign s1_Z[25] = s1_B[25] ^ s1_A[25]; 
+assign s2_Z[25] = s2_B[25] ^ s2_A[25]; 
+
+//  XOR2D0 g940__5122(.A1 (B[24]), .A2 (A[24]), .Z (Z[24]));  
+assign s1_Z[24] = s1_B[24] ^ s1_A[24]; 
+assign s2_Z[24] = s2_B[24] ^ s2_A[24]; 
+
+//  XOR2D0 g942__8246(.A1 (B[23]), .A2 (A[23]), .Z (Z[23]));  
+assign s1_Z[23] = s1_B[23] ^ s1_A[23]; 
+assign s2_Z[23] = s2_B[23] ^ s2_A[23]; 
+
+//  XOR2D0 g943__7098(.A1 (B[22]), .A2 (A[22]), .Z (Z[22]));  
+assign s1_Z[22] = s1_B[22] ^ s1_A[22]; 
+assign s2_Z[22] = s2_B[22] ^ s2_A[22]; 
+
+//  XOR2D0 g929__6131(.A1 (B[21]), .A2 (A[21]), .Z (Z[21]));  
+assign s1_Z[21] = s1_B[21] ^ s1_A[21]; 
+assign s2_Z[21] = s2_B[21] ^ s2_A[21]; 
+
+//  XOR2D0 g947__1881(.A1 (B[20]), .A2 (A[20]), .Z (Z[20]));  
+assign s1_Z[20] = s1_B[20] ^ s1_A[20]; 
+assign s2_Z[20] = s2_B[20] ^ s2_A[20]; 
+
+//  XOR2D0 g948__5115(.A1 (B[19]), .A2 (A[19]), .Z (Z[19]));  
+assign s1_Z[19] = s1_B[19] ^ s1_A[19]; 
+assign s2_Z[19] = s2_B[19] ^ s2_A[19]; 
+
+//  XOR2D0 g951__7482(.A1 (B[18]), .A2 (A[18]), .Z (Z[18]));  
+assign s1_Z[18] = s1_B[18] ^ s1_A[18]; 
+assign s2_Z[18] = s2_B[18] ^ s2_A[18]; 
+
+//  XOR2D0 g952__4733(.A1 (B[17]), .A2 (A[17]), .Z (Z[17]));  
+assign s1_Z[17] = s1_B[17] ^ s1_A[17]; 
+assign s2_Z[17] = s2_B[17] ^ s2_A[17]; 
+
+//  XOR2D0 g954__6161(.A1 (B[16]), .A2 (A[16]), .Z (Z[16]));  
+assign s1_Z[16] = s1_B[16] ^ s1_A[16]; 
+assign s2_Z[16] = s2_B[16] ^ s2_A[16]; 
+
+//  XOR2D0 g926__9315(.A1 (B[31]), .A2 (A[31]), .Z (Z[31]));  
+assign s1_Z[31] = s1_B[31] ^ s1_A[31]; 
+assign s2_Z[31] = s2_B[31] ^ s2_A[31]; 
+
+//  XOR2D0 g958__9945(.A1 (B[14]), .A2 (A[14]), .Z (Z[14]));  
+assign s1_Z[14] = s1_B[14] ^ s1_A[14]; 
+assign s2_Z[14] = s2_B[14] ^ s2_A[14]; 
+
+//  XOR2D0 g960__2883(.A1 (B[13]), .A2 (A[13]), .Z (Z[13]));  
+assign s1_Z[13] = s1_B[13] ^ s1_A[13]; 
+assign s2_Z[13] = s2_B[13] ^ s2_A[13]; 
+
+//  XOR2D0 g902__2346(.A1 (B[12]), .A2 (A[12]), .Z (Z[12]));  
+assign s1_Z[12] = s1_B[12] ^ s1_A[12]; 
+assign s2_Z[12] = s2_B[12] ^ s2_A[12]; 
+
+//  XOR2D0 g903__1666(.A1 (B[11]), .A2 (A[11]), .Z (Z[11]));  
+assign s1_Z[11] = s1_B[11] ^ s1_A[11]; 
+assign s2_Z[11] = s2_B[11] ^ s2_A[11]; 
+
+//  XOR2D0 g904__7410(.A1 (B[10]), .A2 (A[10]), .Z (Z[10]));  
+assign s1_Z[10] = s1_B[10] ^ s1_A[10]; 
+assign s2_Z[10] = s2_B[10] ^ s2_A[10]; 
+
+//  XOR2D0 g905__6417(.A1 (B[9]), .A2 (A[9]), .Z (Z[9]));  
+assign s1_Z[9] = s1_B[9] ^ s1_A[9]; 
+assign s2_Z[9] = s2_B[9] ^ s2_A[9]; 
+
+//  XOR2D0 g908__5477(.A1 (B[8]), .A2 (A[8]), .Z (Z[8]));  
+assign s1_Z[8] = s1_B[8] ^ s1_A[8]; 
+assign s2_Z[8] = s2_B[8] ^ s2_A[8]; 
+
+//  XOR2D0 g910__2398(.A1 (B[7]), .A2 (A[7]), .Z (Z[7]));  
+assign s1_Z[7] = s1_B[7] ^ s1_A[7]; 
+assign s2_Z[7] = s2_B[7] ^ s2_A[7]; 
+
+//  XOR2D0 g911__5107(.A1 (B[6]), .A2 (A[6]), .Z (Z[6]));  
+assign s1_Z[6] = s1_B[6] ^ s1_A[6]; 
+assign s2_Z[6] = s2_B[6] ^ s2_A[6]; 
+
+//  XOR2D0 g914__6260(.A1 (B[5]), .A2 (A[5]), .Z (Z[5]));  
+assign s1_Z[5] = s1_B[5] ^ s1_A[5]; 
+assign s2_Z[5] = s2_B[5] ^ s2_A[5]; 
+
+//  XOR2D0 g916__4319(.A1 (B[4]), .A2 (A[4]), .Z (Z[4]));  
+assign s1_Z[4] = s1_B[4] ^ s1_A[4]; 
+assign s2_Z[4] = s2_B[4] ^ s2_A[4]; 
+
+//  XOR2D0 g917__8428(.A1 (B[3]), .A2 (A[3]), .Z (Z[3]));  
+assign s1_Z[3] = s1_B[3] ^ s1_A[3]; 
+assign s2_Z[3] = s2_B[3] ^ s2_A[3]; 
+
+//  XOR2D0 g919__5526(.A1 (B[2]), .A2 (A[2]), .Z (Z[2]));  
+assign s1_Z[2] = s1_B[2] ^ s1_A[2]; 
+assign s2_Z[2] = s2_B[2] ^ s2_A[2]; 
+
+//  XOR2D0 g920__6783(.A1 (B[1]), .A2 (A[1]), .Z (Z[1]));  
+assign s1_Z[1] = s1_B[1] ^ s1_A[1]; 
+assign s2_Z[1] = s2_B[1] ^ s2_A[1]; 
+
+//  XOR2D0 g922__3680(.A1 (B[0]), .A2 (A[0]), .Z (Z[0]));  
+assign s1_Z[0] = s1_B[0] ^ s1_A[0]; 
+assign s2_Z[0] = s2_B[0] ^ s2_A[0]; 
+
+endmodule 
+
+//LFSR to generate pseudo-random numbers
+module kalyna_lfsr64 (clk, rst, start, seed, lfsr_out);
+  input clk, rst, start;
+  input [63:0] seed;
+  output reg [63:0] lfsr_out;
+  
+  //Variables
+  wire feedback;
+  reg enable;
+
+  //Behavioral description
+  always @(posedge clk or negedge rst) begin
+    if (rst == 1'b0) begin
+      lfsr_out <= 64'd0;
+      enable <= 1'b0;
+    end
+    else begin
+      if (start == 1'b0) begin
+        lfsr_out <= 64'd0;
+        enable <= 1'b0;
+      end
+      else begin
+        if (enable == 1'b0) begin
+          enable <= 1'b1;
+          if (seed > 64'd0) begin
+            lfsr_out <= seed;
+          end
+          else begin
+            lfsr_out <= {64{1'b1}};
+          end
+        end
+        else begin
+          lfsr_out <= {lfsr_out[62:0], feedback};
+        end
+      end
+    end
+  end
+
+  assign feedback = lfsr_out[63] ^ lfsr_out[62] ^ lfsr_out[60] ^ lfsr_out[59];
+endmodule
+
+//XORSHIFT to generate pseudo-random numbers
+module kalyna_xorshift64 (clk, rst, start, seed, xs_out);
+
+input clk, rst, start;
+input [63:0] seed;
+output [63:0] xs_out;
+
+reg [63:0] the_seed;
+wire [63:0] int0, int1, int2;
+
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    if (seed == 64'd0) begin
+      the_seed <= 64'd1;
+    end
+    else begin
+      the_seed <= seed;
+    end
+  end
+  else begin
+    if (start == 1'b0) begin
+      if (seed == 64'd0) begin
+        the_seed <= 64'd1;
+      end
+      else begin
+        the_seed <= seed;
+      end
+    end
+    else begin
+      the_seed <= int2;
+    end
+  end
+end
+
+assign int0 = the_seed ^ {the_seed[50:0], 13'd0};
+assign int1 = int0 ^ {7'd0, int0[63:7]};
+assign int2 = int1 ^ {int1[46:0], 17'd0};
+
+assign xs_out = int2;
+
+endmodule
+
+//SUBSTITUTE BYTE using 4 S-Boxes
+module kalyna_substitute_byte_foursbox #(parameter BLOCK_SIZE = 512) (sb_in, sb_out);
+
+input [BLOCK_SIZE-1:0] sb_in;
+output [BLOCK_SIZE-1:0] sb_out;
+
+localparam byte_cnt = (BLOCK_SIZE == 512) ? 5'd16 : (BLOCK_SIZE == 256) ? 4'd8 : 3'd4;
+
+genvar i;
+generate
+  for (i=0; i<byte_cnt; i=i+1) begin
+    `ifdef OPT
+      kalyna_sbox_3_alt6 sbox3_ins (.sbox_in(sb_in[(byte_cnt-i-1)*32+7  : (byte_cnt-i-1)*32]),    .sbox_out(sb_out[(byte_cnt-i-1)*32+7  : (byte_cnt-i-1)*32]));
+      kalyna_sbox_2_alt6 sbox2_ins (.sbox_in(sb_in[(byte_cnt-i-1)*32+15 : (byte_cnt-i-1)*32+8]),  .sbox_out(sb_out[(byte_cnt-i-1)*32+15 : (byte_cnt-i-1)*32+8]));
+      kalyna_sbox_1_alt6 sbox1_ins (.sbox_in(sb_in[(byte_cnt-i-1)*32+23 : (byte_cnt-i-1)*32+16]), .sbox_out(sb_out[(byte_cnt-i-1)*32+23 : (byte_cnt-i-1)*32+16]));
+      kalyna_sbox_0_alt6 sbox0_ins (.sbox_in(sb_in[(byte_cnt-i-1)*32+31 : (byte_cnt-i-1)*32+24]), .sbox_out(sb_out[(byte_cnt-i-1)*32+31 : (byte_cnt-i-1)*32+24]));
+    `elsif NOOPT
+      kalyna_sbox_3 sbox3_ins (.sbox_in(sb_in[(byte_cnt-i-1)*32+7  : (byte_cnt-i-1)*32]),    .sbox_out(sb_out[(byte_cnt-i-1)*32+7  : (byte_cnt-i-1)*32]));
+      kalyna_sbox_2 sbox2_ins (.sbox_in(sb_in[(byte_cnt-i-1)*32+15 : (byte_cnt-i-1)*32+8]),  .sbox_out(sb_out[(byte_cnt-i-1)*32+15 : (byte_cnt-i-1)*32+8]));
+      kalyna_sbox_1 sbox1_ins (.sbox_in(sb_in[(byte_cnt-i-1)*32+23 : (byte_cnt-i-1)*32+16]), .sbox_out(sb_out[(byte_cnt-i-1)*32+23 : (byte_cnt-i-1)*32+16]));
+      kalyna_sbox_0 sbox0_ins (.sbox_in(sb_in[(byte_cnt-i-1)*32+31 : (byte_cnt-i-1)*32+24]), .sbox_out(sb_out[(byte_cnt-i-1)*32+31 : (byte_cnt-i-1)*32+24]));
+    `endif
+  end
+endgenerate
+
+endmodule
+
+//INVERSE SUBSTITUTE BYTE using 4 S-Boxes
+module kalyna_inv_substitute_byte_foursbox #(parameter BLOCK_SIZE = 512) (sb_in, sb_out);
+
+input [BLOCK_SIZE-1:0] sb_in;
+output [BLOCK_SIZE-1:0] sb_out;
+
+localparam byte_cnt = (BLOCK_SIZE == 512) ? 5'd16 : (BLOCK_SIZE == 256) ? 4'd8 : 3'd4;
+
+genvar i;
+generate
+  for (i=0; i<byte_cnt; i=i+1) begin
+    `ifdef OPT
+      kalyna_inv_sbox_3_alt6 sbox3_ins (.sbox_in(sb_in[(byte_cnt-i-1)*32+7  : (byte_cnt-i-1)*32]),    .sbox_out(sb_out[(byte_cnt-i-1)*32+7  : (byte_cnt-i-1)*32]));
+      kalyna_inv_sbox_2_alt6 sbox2_ins (.sbox_in(sb_in[(byte_cnt-i-1)*32+15 : (byte_cnt-i-1)*32+8]),  .sbox_out(sb_out[(byte_cnt-i-1)*32+15 : (byte_cnt-i-1)*32+8]));
+      kalyna_inv_sbox_1_alt6 sbox1_ins (.sbox_in(sb_in[(byte_cnt-i-1)*32+23 : (byte_cnt-i-1)*32+16]), .sbox_out(sb_out[(byte_cnt-i-1)*32+23 : (byte_cnt-i-1)*32+16]));
+      kalyna_inv_sbox_0_alt6 sbox0_ins (.sbox_in(sb_in[(byte_cnt-i-1)*32+31 : (byte_cnt-i-1)*32+24]), .sbox_out(sb_out[(byte_cnt-i-1)*32+31 : (byte_cnt-i-1)*32+24]));
+    `elsif NOOPT
+      kalyna_inv_sbox_3 sbox3_ins (.sbox_in(sb_in[(byte_cnt-i-1)*32+7  : (byte_cnt-i-1)*32]),    .sbox_out(sb_out[(byte_cnt-i-1)*32+7  : (byte_cnt-i-1)*32]));
+      kalyna_inv_sbox_2 sbox2_ins (.sbox_in(sb_in[(byte_cnt-i-1)*32+15 : (byte_cnt-i-1)*32+8]),  .sbox_out(sb_out[(byte_cnt-i-1)*32+15 : (byte_cnt-i-1)*32+8]));
+      kalyna_inv_sbox_1 sbox1_ins (.sbox_in(sb_in[(byte_cnt-i-1)*32+23 : (byte_cnt-i-1)*32+16]), .sbox_out(sb_out[(byte_cnt-i-1)*32+23 : (byte_cnt-i-1)*32+16]));
+      kalyna_inv_sbox_0 sbox0_ins (.sbox_in(sb_in[(byte_cnt-i-1)*32+31 : (byte_cnt-i-1)*32+24]), .sbox_out(sb_out[(byte_cnt-i-1)*32+31 : (byte_cnt-i-1)*32+24]));
+    `endif
+  end
+endgenerate
+
+endmodule
+
+//SUBSTITUTE BYTE for 64-bit column
+module kalyna_substitute_byte_64b (sb_in, sb_out);
+
+input [63:0] sb_in;
+output [63:0] sb_out;
+
+genvar i;
+generate
+  for (i=0; i<2; i=i+1) begin
+    `ifdef OPT
+      kalyna_sbox_3_alt6 sbox3_ins (.sbox_in(sb_in[(1-i)*32+7  : (1-i)*32]),    .sbox_out(sb_out[(1-i)*32+7  : (1-i)*32]));
+      kalyna_sbox_2_alt6 sbox2_ins (.sbox_in(sb_in[(1-i)*32+15 : (1-i)*32+8]),  .sbox_out(sb_out[(1-i)*32+15 : (1-i)*32+8]));
+      kalyna_sbox_1_alt6 sbox1_ins (.sbox_in(sb_in[(1-i)*32+23 : (1-i)*32+16]), .sbox_out(sb_out[(1-i)*32+23 : (1-i)*32+16]));
+      kalyna_sbox_0_alt6 sbox0_ins (.sbox_in(sb_in[(1-i)*32+31 : (1-i)*32+24]), .sbox_out(sb_out[(1-i)*32+31 : (1-i)*32+24]));
+    `elsif NOOPT
+      kalyna_sbox_3 sbox3_ins (.sbox_in(sb_in[(1-i)*32+7  : (1-i)*32]),    .sbox_out(sb_out[(1-i)*32+7  : (1-i)*32]));
+      kalyna_sbox_2 sbox2_ins (.sbox_in(sb_in[(1-i)*32+15 : (1-i)*32+8]),  .sbox_out(sb_out[(1-i)*32+15 : (1-i)*32+8]));
+      kalyna_sbox_1 sbox1_ins (.sbox_in(sb_in[(1-i)*32+23 : (1-i)*32+16]), .sbox_out(sb_out[(1-i)*32+23 : (1-i)*32+16]));
+      kalyna_sbox_0 sbox0_ins (.sbox_in(sb_in[(1-i)*32+31 : (1-i)*32+24]), .sbox_out(sb_out[(1-i)*32+31 : (1-i)*32+24]));
+    `endif
+  end
+endgenerate
+
+endmodule
+
+//SUBSTITUTE BYTE for 64-bit column - First-Order Masking
+module kalyna_substitute_byte_64b_fom (s1_sb_in, s2_sb_in, s1_sb_out, s2_sb_out);
+
+input [63:0] s1_sb_in, s2_sb_in;
+output [63:0] s1_sb_out, s2_sb_out;
+
+genvar i;
+generate
+  for (i=0; i<2; i=i+1) begin
+    kalyna_sbox_3_alt6_fom sbox3_ins ( .s1_sbox_in(s1_sb_in[(1-i)*32+7  : (1-i)*32]),    .s2_sbox_in(s2_sb_in[(1-i)*32+7  : (1-i)*32]),    .s1_sbox_out(s1_sb_out[(1-i)*32+7  : (1-i)*32]),    .s2_sbox_out(s2_sb_out[(1-i)*32+7  : (1-i)*32])    );
+    kalyna_sbox_2_alt6_fom sbox2_ins ( .s1_sbox_in(s1_sb_in[(1-i)*32+15 : (1-i)*32+8]),  .s2_sbox_in(s2_sb_in[(1-i)*32+15 : (1-i)*32+8]),  .s1_sbox_out(s1_sb_out[(1-i)*32+15 : (1-i)*32+8]),  .s2_sbox_out(s2_sb_out[(1-i)*32+15 : (1-i)*32+8])  );
+    kalyna_sbox_1_alt6_fom sbox1_ins ( .s1_sbox_in(s1_sb_in[(1-i)*32+23 : (1-i)*32+16]), .s2_sbox_in(s2_sb_in[(1-i)*32+23 : (1-i)*32+16]), .s1_sbox_out(s1_sb_out[(1-i)*32+23 : (1-i)*32+16]), .s2_sbox_out(s2_sb_out[(1-i)*32+23 : (1-i)*32+16]) );
+    kalyna_sbox_0_alt6_fom sbox0_ins ( .s1_sbox_in(s1_sb_in[(1-i)*32+31 : (1-i)*32+24]), .s2_sbox_in(s2_sb_in[(1-i)*32+31 : (1-i)*32+24]), .s1_sbox_out(s1_sb_out[(1-i)*32+31 : (1-i)*32+24]), .s2_sbox_out(s2_sb_out[(1-i)*32+31 : (1-i)*32+24]) );
+  end
+endgenerate
+
+endmodule
+
+//INVERSE SUBSTITUTE BYTE for 64-bit column
+module kalyna_inv_substitute_byte_64b (sb_in, sb_out);
+
+input [63:0] sb_in;
+output [63:0] sb_out;
+
+genvar i;
+generate
+  for (i=0; i<2; i=i+1) begin
+    `ifdef OPT
+      kalyna_inv_sbox_3_alt6 sbox3_ins (.sbox_in(sb_in[(1-i)*32+7  : (1-i)*32]),    .sbox_out(sb_out[(1-i)*32+7  : (1-i)*32]));
+      kalyna_inv_sbox_2_alt6 sbox2_ins (.sbox_in(sb_in[(1-i)*32+15 : (1-i)*32+8]),  .sbox_out(sb_out[(1-i)*32+15 : (1-i)*32+8]));
+      kalyna_inv_sbox_1_alt6 sbox1_ins (.sbox_in(sb_in[(1-i)*32+23 : (1-i)*32+16]), .sbox_out(sb_out[(1-i)*32+23 : (1-i)*32+16]));
+      kalyna_inv_sbox_0_alt6 sbox0_ins (.sbox_in(sb_in[(1-i)*32+31 : (1-i)*32+24]), .sbox_out(sb_out[(1-i)*32+31 : (1-i)*32+24]));
+    `elsif NOOPT
+      kalyna_inv_sbox_3 sbox3_ins (.sbox_in(sb_in[(1-i)*32+7  : (1-i)*32]),    .sbox_out(sb_out[(1-i)*32+7  : (1-i)*32]));
+      kalyna_inv_sbox_2 sbox2_ins (.sbox_in(sb_in[(1-i)*32+15 : (1-i)*32+8]),  .sbox_out(sb_out[(1-i)*32+15 : (1-i)*32+8]));
+      kalyna_inv_sbox_1 sbox1_ins (.sbox_in(sb_in[(1-i)*32+23 : (1-i)*32+16]), .sbox_out(sb_out[(1-i)*32+23 : (1-i)*32+16]));
+      kalyna_inv_sbox_0 sbox0_ins (.sbox_in(sb_in[(1-i)*32+31 : (1-i)*32+24]), .sbox_out(sb_out[(1-i)*32+31 : (1-i)*32+24]));
+    `endif
+  end
+endgenerate
+
+endmodule
+
+//INVERSE SUBSTITUTE BYTE for 64-bit column - First-Order Masking
+module kalyna_inv_substitute_byte_64b_fom (s1_sb_in, s2_sb_in, s1_sb_out, s2_sb_out);
+
+input [63:0] s1_sb_in, s2_sb_in;
+output [63:0] s1_sb_out, s2_sb_out;
+
+genvar i;
+generate
+  for (i=0; i<2; i=i+1) begin
+    kalyna_inv_sbox_3_alt6_fom sbox3_ins ( .s1_sbox_in(s1_sb_in[(1-i)*32+7  : (1-i)*32]),    .s2_sbox_in(s2_sb_in[(1-i)*32+7  : (1-i)*32]),    .s1_sbox_out(s1_sb_out[(1-i)*32+7  : (1-i)*32]),    .s2_sbox_out(s2_sb_out[(1-i)*32+7  : (1-i)*32]));
+    kalyna_inv_sbox_2_alt6_fom sbox2_ins ( .s1_sbox_in(s1_sb_in[(1-i)*32+15 : (1-i)*32+8]),  .s2_sbox_in(s2_sb_in[(1-i)*32+15 : (1-i)*32+8]),  .s1_sbox_out(s1_sb_out[(1-i)*32+15 : (1-i)*32+8]),  .s2_sbox_out(s2_sb_out[(1-i)*32+15 : (1-i)*32+8]));
+    kalyna_inv_sbox_1_alt6_fom sbox1_ins ( .s1_sbox_in(s1_sb_in[(1-i)*32+23 : (1-i)*32+16]), .s2_sbox_in(s2_sb_in[(1-i)*32+23 : (1-i)*32+16]), .s1_sbox_out(s1_sb_out[(1-i)*32+23 : (1-i)*32+16]), .s2_sbox_out(s2_sb_out[(1-i)*32+23 : (1-i)*32+16]));
+    kalyna_inv_sbox_0_alt6_fom sbox0_ins ( .s1_sbox_in(s1_sb_in[(1-i)*32+31 : (1-i)*32+24]), .s2_sbox_in(s2_sb_in[(1-i)*32+31 : (1-i)*32+24]), .s1_sbox_out(s1_sb_out[(1-i)*32+31 : (1-i)*32+24]), .s2_sbox_out(s2_sb_out[(1-i)*32+31 : (1-i)*32+24]));
+  end
+endgenerate
+
+endmodule
+
+//64-BIT ADDITION
+module kalyna_add64 (oper_one, oper_two, oper_out);
+
+input [63:0] oper_one, oper_two;
+output [63:0] oper_out;
+
+assign oper_out = oper_one + oper_two;
+
+endmodule
+
+//64-BIT SUBTRACTION
+module kalyna_sub64 (oper_one, oper_two, oper_out);
+
+input [63:0] oper_one, oper_two;
+output [63:0] oper_out;
+
+assign oper_out = oper_one - oper_two;
+
+endmodule
+
+//MODULO 2^64 ADDITION
+module kalyna_mod2p64_add #(parameter BLOCK_SIZE = 512) (m2p64add_in_one, m2p64add_in_two, m2p64add_out);
+
+input [BLOCK_SIZE-1:0] m2p64add_in_one, m2p64add_in_two;
+output [BLOCK_SIZE-1:0] m2p64add_out;
+
+localparam col_m1 = (BLOCK_SIZE == 512) ? 3'd7 : (BLOCK_SIZE == 256) ? 2'd3 : 1'd1;
+localparam col_cnt = (BLOCK_SIZE == 512) ? 4'd8 : (BLOCK_SIZE == 256)  ? 3'd4 : 2'd2;
+
+wire [63:0] oper_one [0:col_m1];
+wire [63:0] oper_two [0:col_m1];
+wire [63:0] oper_out [0:col_m1];
+
+genvar i;
+generate
+  for (i=0; i<col_cnt; i=i+1) begin
+    assign oper_one[i] = { m2p64add_in_one[i*64+7 : i*64], m2p64add_in_one[i*64+15 : i*64+8], m2p64add_in_one[i*64+23 : i*64+16], m2p64add_in_one[i*64+31 : i*64+24], m2p64add_in_one[i*64+39 : i*64+32], m2p64add_in_one[i*64+47 : i*64+40], m2p64add_in_one[i*64+55 : i*64+48], m2p64add_in_one[i*64+63 : i*64+56] };
+    assign oper_two[i] = { m2p64add_in_two[i*64+7 : i*64], m2p64add_in_two[i*64+15 : i*64+8], m2p64add_in_two[i*64+23 : i*64+16], m2p64add_in_two[i*64+31 : i*64+24], m2p64add_in_two[i*64+39 : i*64+32], m2p64add_in_two[i*64+47 : i*64+40], m2p64add_in_two[i*64+55 : i*64+48], m2p64add_in_two[i*64+63 : i*64+56] };
+
+    `ifdef KSA
+      Kalyna_Kogge_Stone_Adder ksa64_ins (.A(oper_one[i]), .B(oper_two[i]), .S(oper_out[i]));
+    `elsif BHA
+      kalyna_add64 add64_ins (.oper_one(oper_one[i]), .oper_two(oper_two[i]), .oper_out(oper_out[i]));
+    `endif
+
+    assign m2p64add_out[i*64+63 : i*64] = { oper_out[i][7:0], oper_out[i][15:8], oper_out[i][23:16], oper_out[i][31:24], oper_out[i][39:32], oper_out[i][47:40], oper_out[i][55:48], oper_out[i][63:56] };
+  end
+endgenerate
+
+endmodule
+
+//MODULO 2^64 SUBTRACTION
+module kalyna_mod2p64_sub #(parameter BLOCK_SIZE = 512) (m2p64sub_in_one, m2p64sub_in_two, m2p64sub_out);
+
+input [BLOCK_SIZE-1:0] m2p64sub_in_one, m2p64sub_in_two;
+output [BLOCK_SIZE-1:0] m2p64sub_out;
+
+localparam col_m1 = (BLOCK_SIZE == 512) ? 3'd7 : (BLOCK_SIZE == 256) ? 2'd3 : 1'd1;
+localparam col_cnt = (BLOCK_SIZE == 512) ? 4'd8 : (BLOCK_SIZE == 256)  ? 3'd4 : 2'd2;
+
+wire [63:0] oper_one [0:col_m1];
+wire [63:0] oper_two [0:col_m1];
+wire [63:0] oper_out [0:col_m1];
+wire [63:0] oper_two_2c [0:col_m1];
+
+genvar i;
+generate
+  for (i=0; i<col_cnt; i=i+1) begin
+    assign oper_one[i] = { m2p64sub_in_one[i*64+7 : i*64], m2p64sub_in_one[i*64+15 : i*64+8], m2p64sub_in_one[i*64+23 : i*64+16], m2p64sub_in_one[i*64+31 : i*64+24], m2p64sub_in_one[i*64+39 : i*64+32], m2p64sub_in_one[i*64+47 : i*64+40], m2p64sub_in_one[i*64+55 : i*64+48], m2p64sub_in_one[i*64+63 : i*64+56] };
+    assign oper_two[i] = { m2p64sub_in_two[i*64+7 : i*64], m2p64sub_in_two[i*64+15 : i*64+8], m2p64sub_in_two[i*64+23 : i*64+16], m2p64sub_in_two[i*64+31 : i*64+24], m2p64sub_in_two[i*64+39 : i*64+32], m2p64sub_in_two[i*64+47 : i*64+40], m2p64sub_in_two[i*64+55 : i*64+48], m2p64sub_in_two[i*64+63 : i*64+56] };
+
+    `ifdef KSA
+      assign oper_two_2c[i] = ~oper_two[i] + 1'b1;
+      Kalyna_Kogge_Stone_Adder ksa64_ins (.A(oper_one[i]), .B(oper_two_2c[i]), .S(oper_out[i]));
+    `elsif BHA
+      kalyna_sub64 sub64_ins (.oper_one(oper_one[i]), .oper_two(oper_two[i]), .oper_out(oper_out[i]));
+    `endif
+
+    assign m2p64sub_out[i*64+63 : i*64] = { oper_out[i][7:0], oper_out[i][15:8], oper_out[i][23:16], oper_out[i][31:24], oper_out[i][39:32], oper_out[i][47:40], oper_out[i][55:48], oper_out[i][63:56] };
+  end
+endgenerate
+
+endmodule
+
+//MODULO 2 ADDITION
+module kalyna_mod2_add #(parameter BLOCK_SIZE = 512) (m2add_in_one, m2add_in_two, m2add_out);
+
+input [BLOCK_SIZE-1:0] m2add_in_one, m2add_in_two;
+output [BLOCK_SIZE-1:0] m2add_out;
+
+assign m2add_out = m2add_in_one ^ m2add_in_two;
+
+endmodule
+
+//MODULO 2^64 ADDITION SERIAL 64-BIT
+module kalyna_mod2p64_add_serial64b #(parameter BLOCK_SIZE = 512) (clk, rst, m2p64add_start, m2p64add_in_one, m2p64add_in_two, m2p64add_out, m2p64add_rdy);
+
+input clk, rst, m2p64add_start;
+input [BLOCK_SIZE-1:0] m2p64add_in_one, m2p64add_in_two;
+output [BLOCK_SIZE-1:0] m2p64add_out;
+output reg m2p64add_rdy;
+
+localparam col_m1 = (BLOCK_SIZE == 512) ? 3'd7 : (BLOCK_SIZE == 256) ? 2'd3 : 1'd1;
+localparam col_cnt = (BLOCK_SIZE == 512) ? 4'd8 : (BLOCK_SIZE == 256) ? 3'd4 : 2'd2;
+localparam col_size = (BLOCK_SIZE == 512) ? 3'd4 : (BLOCK_SIZE == 256) ? 2'd3 : 2'd2;
+
+//Variables
+wire [63:0] oper_one;
+wire [63:0] oper_two;
+wire [63:0] oper_out;
+reg [col_size-1:0] col_counter;
+reg [BLOCK_SIZE-1:0] reg_add_out;
+
+//Counter
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    col_counter <= {col_size{1'b0}};
+  end
+  else begin
+    if (m2p64add_start == 1'b0) begin
+      col_counter <= {col_size{1'b0}};
+    end
+    else begin
+      if (col_counter < col_cnt) begin
+        col_counter <= col_counter + 1'b1;
+      end
+      else begin
+        col_counter <= {col_size{1'b0}};
+      end
+    end
+  end
+end
+
+//Assignment to the Output
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    m2p64add_rdy <= 1'b0;
+    reg_add_out <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (m2p64add_start == 1'b0) begin
+      m2p64add_rdy <= 1'b0;
+      reg_add_out <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      reg_add_out[col_counter*64 +: 64] <= { oper_out[7:0], oper_out[15:8], oper_out[23:16], oper_out[31:24], oper_out[39:32], oper_out[47:40], oper_out[55:48], oper_out[63:56] };
+      if (col_counter == col_m1) begin
+        m2p64add_rdy <= 1'b1;
+      end
+      else begin
+        m2p64add_rdy <= 1'b0;
+      end
+    end
+  end
+end
+
+//64-bit Addition Inputs
+assign oper_one = {m2p64add_in_one[col_counter*64    +: 8], 
+                   m2p64add_in_one[col_counter*64+8  +: 8], 
+                   m2p64add_in_one[col_counter*64+16 +: 8], 
+                   m2p64add_in_one[col_counter*64+24 +: 8], 
+                   m2p64add_in_one[col_counter*64+32 +: 8], 
+                   m2p64add_in_one[col_counter*64+40 +: 8], 
+                   m2p64add_in_one[col_counter*64+48 +: 8], 
+                   m2p64add_in_one[col_counter*64+56 +: 8]};
+
+assign oper_two = {m2p64add_in_two[col_counter*64    +: 8], 
+                   m2p64add_in_two[col_counter*64+8  +: 8], 
+                   m2p64add_in_two[col_counter*64+16 +: 8], 
+                   m2p64add_in_two[col_counter*64+24 +: 8], 
+                   m2p64add_in_two[col_counter*64+32 +: 8], 
+                   m2p64add_in_two[col_counter*64+40 +: 8], 
+                   m2p64add_in_two[col_counter*64+48 +: 8], 
+                   m2p64add_in_two[col_counter*64+56 +: 8]};
+
+//64-bit Addition
+`ifdef KSA
+  Kalyna_Kogge_Stone_Adder ksa64_ins (.A(oper_one), .B(oper_two), .S(oper_out));
+`elsif BHA
+  kalyna_add64 add64_ins (.oper_one(oper_one), .oper_two(oper_two), .oper_out(oper_out));
+`endif
+
+//Addition Output
+assign m2p64add_out = reg_add_out;
+
+endmodule
+
+//MODULO 2^64 ADDITION SERIAL 64-BIT - First-Order Masking implementation
+module kalyna_mod2p64_add_serial64b_fom #(parameter BLOCK_SIZE = 512) (clk, rst, m2p64add_start, m2p64add_in_one, m2p64add_in_two, lfsr_in, m2p64add_out, m2p64add_rdy);
+
+input clk, rst, m2p64add_start;
+input [BLOCK_SIZE-1:0] m2p64add_in_one, m2p64add_in_two;
+input [63:0] lfsr_in;
+output [BLOCK_SIZE-1:0] m2p64add_out;
+output reg m2p64add_rdy;
+
+localparam col_m1 = (BLOCK_SIZE == 512) ? 3'd7 : (BLOCK_SIZE == 256) ? 2'd3 : 1'd1;
+localparam col_cnt = (BLOCK_SIZE == 512) ? 4'd8 : (BLOCK_SIZE == 256) ? 3'd4 : 2'd2;
+localparam col_size = (BLOCK_SIZE == 512) ? 3'd4 : (BLOCK_SIZE == 256) ? 2'd3 : 2'd2;
+
+//Variables
+wire [63:0] oper_one, s1_oper_one, s2_oper_one, oper_two, s1_oper_two, s2_oper_two, oper_out, s1_oper_out, s2_oper_out;
+reg [col_size-1:0] col_counter;
+reg [BLOCK_SIZE-1:0] reg_add_out;
+
+//Counter
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    col_counter <= {col_size{1'b0}};
+  end
+  else begin
+    if (m2p64add_start == 1'b0) begin
+      col_counter <= {col_size{1'b0}};
+    end
+    else begin
+      if (col_counter < col_cnt) begin
+        col_counter <= col_counter + 1'b1;
+      end
+      else begin
+        col_counter <= {col_size{1'b0}};
+      end
+    end
+  end
+end
+
+//Assignment to the Output
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    m2p64add_rdy <= 1'b0;
+    reg_add_out <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (m2p64add_start == 1'b0) begin
+      m2p64add_rdy <= 1'b0;
+      reg_add_out <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      reg_add_out[col_counter*64 +: 64] <= { oper_out[7:0], oper_out[15:8], oper_out[23:16], oper_out[31:24], oper_out[39:32], oper_out[47:40], oper_out[55:48], oper_out[63:56] };
+      if (col_counter == col_m1) begin
+        m2p64add_rdy <= 1'b1;
+      end
+      else begin
+        m2p64add_rdy <= 1'b0;
+      end
+    end
+  end
+end
+
+//64-bit Addition Inputs
+assign oper_one = {m2p64add_in_one[col_counter*64    +: 8], 
+                   m2p64add_in_one[col_counter*64+8  +: 8], 
+                   m2p64add_in_one[col_counter*64+16 +: 8], 
+                   m2p64add_in_one[col_counter*64+24 +: 8], 
+                   m2p64add_in_one[col_counter*64+32 +: 8], 
+                   m2p64add_in_one[col_counter*64+40 +: 8], 
+                   m2p64add_in_one[col_counter*64+48 +: 8], 
+                   m2p64add_in_one[col_counter*64+56 +: 8]};
+
+assign oper_two = {m2p64add_in_two[col_counter*64    +: 8], 
+                   m2p64add_in_two[col_counter*64+8  +: 8], 
+                   m2p64add_in_two[col_counter*64+16 +: 8], 
+                   m2p64add_in_two[col_counter*64+24 +: 8], 
+                   m2p64add_in_two[col_counter*64+32 +: 8], 
+                   m2p64add_in_two[col_counter*64+40 +: 8], 
+                   m2p64add_in_two[col_counter*64+48 +: 8], 
+                   m2p64add_in_two[col_counter*64+56 +: 8]};
+
+//Mask Inputs
+assign s1_oper_one = lfsr_in;
+assign s1_oper_two = ~lfsr_in;
+assign s2_oper_one = oper_one ^ lfsr_in;
+assign s2_oper_two = oper_two ~^ lfsr_in;
+
+//KSA - First-Order Masking
+kalyna_ksa_fom ksa64_ins (.s1_A(s1_oper_one), .s2_A(s2_oper_one), .s1_B(s1_oper_two), .s2_B(s2_oper_two), .s1_S(s1_oper_out), .s2_S(s2_oper_out));
+
+//Output of the masked design
+assign oper_out = s1_oper_out ^ s2_oper_out;
+
+//Addition Output
+assign m2p64add_out = reg_add_out;
+
+endmodule
+
+//INVERSE MODULO 2^64 ADDITION SERIAL 64-BIT
+module kalyna_inv_mod2p64_add_serial64b #(parameter BLOCK_SIZE = 512) (clk, rst, m2p64add_start, m2p64add_in_one, m2p64add_in_two, m2p64add_out, m2p64add_rdy);
+
+input clk, rst, m2p64add_start;
+input [BLOCK_SIZE-1:0] m2p64add_in_one, m2p64add_in_two;
+output [BLOCK_SIZE-1:0] m2p64add_out;
+output reg m2p64add_rdy;
+
+localparam col_m1 = (BLOCK_SIZE == 512) ? 3'd7 : (BLOCK_SIZE == 256) ? 2'd3 : 1'd1;
+localparam col_cnt = (BLOCK_SIZE == 512) ? 4'd8 : (BLOCK_SIZE == 256) ? 3'd4 : 2'd2;
+localparam col_size = (BLOCK_SIZE == 512) ? 3'd4 : (BLOCK_SIZE == 256) ? 2'd3 : 2'd2;
+
+//Variables
+reg [col_size-1:0] col_counter;
+reg [BLOCK_SIZE-1:0] reg_add_out;
+wire [63:0] oper_one, oper_two, oper_two_2c, oper_out;
+
+//Counter
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    col_counter <= {col_size{1'b0}};
+  end
+  else begin
+    if (m2p64add_start == 1'b0) begin
+      col_counter <= {col_size{1'b0}};
+    end
+    else begin
+      if (col_counter < col_cnt) begin
+        col_counter <= col_counter + 1'b1;
+      end
+      else begin
+        col_counter <= {col_size{1'b0}};
+      end
+    end
+  end
+end
+
+//Assignment to the Output
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    m2p64add_rdy <= 1'b0;
+    reg_add_out <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (m2p64add_start == 1'b0) begin
+      m2p64add_rdy <= 1'b0;
+      reg_add_out <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      reg_add_out[col_counter*64 +: 64] <= { oper_out[7:0], oper_out[15:8], oper_out[23:16], oper_out[31:24], oper_out[39:32], oper_out[47:40], oper_out[55:48], oper_out[63:56] };
+      if (col_counter == col_m1) begin
+        m2p64add_rdy <= 1'b1;
+      end
+      else begin
+        m2p64add_rdy <= 1'b0;
+      end
+    end
+  end
+end
+
+//64-bit Addition Inputs
+assign oper_one = {m2p64add_in_one[col_counter*64    +: 8], 
+                   m2p64add_in_one[col_counter*64+8  +: 8], 
+                   m2p64add_in_one[col_counter*64+16 +: 8], 
+                   m2p64add_in_one[col_counter*64+24 +: 8], 
+                   m2p64add_in_one[col_counter*64+32 +: 8], 
+                   m2p64add_in_one[col_counter*64+40 +: 8], 
+                   m2p64add_in_one[col_counter*64+48 +: 8], 
+                   m2p64add_in_one[col_counter*64+56 +: 8]};
+
+assign oper_two = {m2p64add_in_two[col_counter*64    +: 8], 
+                   m2p64add_in_two[col_counter*64+8  +: 8], 
+                   m2p64add_in_two[col_counter*64+16 +: 8], 
+                   m2p64add_in_two[col_counter*64+24 +: 8], 
+                   m2p64add_in_two[col_counter*64+32 +: 8], 
+                   m2p64add_in_two[col_counter*64+40 +: 8], 
+                   m2p64add_in_two[col_counter*64+48 +: 8], 
+                   m2p64add_in_two[col_counter*64+56 +: 8]};
+
+//64-bit Addition
+`ifdef KSA
+  assign oper_two_2c = ~oper_two + 1'b1;
+  Kalyna_Kogge_Stone_Adder ksa64_ins (.A(oper_one), .B(oper_two_2c), .S(oper_out));
+`elsif BHA
+  kalyna_sub64 add64_ins (.oper_one(oper_one), .oper_two(oper_two), .oper_out(oper_out));
+`endif
+
+//Addition Output
+assign m2p64add_out = reg_add_out;
+
+endmodule
+
+//INVERSE MODULO 2^64 ADDITION SERIAL 64-BIT - First-Order Masking
+module kalyna_inv_mod2p64_add_serial64b_fom #(parameter BLOCK_SIZE = 512) (clk, rst, m2p64add_start, m2p64add_in_one, m2p64add_in_two, lfsr_in, m2p64add_out, m2p64add_rdy);
+
+input clk, rst, m2p64add_start;
+input [63:0] lfsr_in;
+input [BLOCK_SIZE-1:0] m2p64add_in_one, m2p64add_in_two;
+output [BLOCK_SIZE-1:0] m2p64add_out;
+output reg m2p64add_rdy;
+
+localparam col_m1 = (BLOCK_SIZE == 512) ? 3'd7 : (BLOCK_SIZE == 256) ? 2'd3 : 1'd1;
+localparam col_cnt = (BLOCK_SIZE == 512) ? 4'd8 : (BLOCK_SIZE == 256) ? 3'd4 : 2'd2;
+localparam col_size = (BLOCK_SIZE == 512) ? 3'd4 : (BLOCK_SIZE == 256) ? 2'd3 : 2'd2;
+
+//Variables
+reg [col_size-1:0] col_counter;
+reg [BLOCK_SIZE-1:0] reg_add_out;
+wire [63:0] oper_one, s1_oper_one, s2_oper_one, oper_two, s1_oper_two, s2_oper_two, oper_two_2c, oper_out, s1_oper_out, s2_oper_out;
+
+//Counter
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    col_counter <= {col_size{1'b0}};
+  end
+  else begin
+    if (m2p64add_start == 1'b0) begin
+      col_counter <= {col_size{1'b0}};
+    end
+    else begin
+      if (col_counter < col_cnt) begin
+        col_counter <= col_counter + 1'b1;
+      end
+      else begin
+        col_counter <= {col_size{1'b0}};
+      end
+    end
+  end
+end
+
+//Assignment to the Output
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    m2p64add_rdy <= 1'b0;
+    reg_add_out <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (m2p64add_start == 1'b0) begin
+      m2p64add_rdy <= 1'b0;
+      reg_add_out <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      reg_add_out[col_counter*64 +: 64] <= { oper_out[7:0], oper_out[15:8], oper_out[23:16], oper_out[31:24], oper_out[39:32], oper_out[47:40], oper_out[55:48], oper_out[63:56] };
+      if (col_counter == col_m1) begin
+        m2p64add_rdy <= 1'b1;
+      end
+      else begin
+        m2p64add_rdy <= 1'b0;
+      end
+    end
+  end
+end
+
+//64-bit Addition Inputs
+assign oper_one = {m2p64add_in_one[col_counter*64    +: 8], 
+                   m2p64add_in_one[col_counter*64+8  +: 8], 
+                   m2p64add_in_one[col_counter*64+16 +: 8], 
+                   m2p64add_in_one[col_counter*64+24 +: 8], 
+                   m2p64add_in_one[col_counter*64+32 +: 8], 
+                   m2p64add_in_one[col_counter*64+40 +: 8], 
+                   m2p64add_in_one[col_counter*64+48 +: 8], 
+                   m2p64add_in_one[col_counter*64+56 +: 8]};
+
+assign oper_two = {m2p64add_in_two[col_counter*64    +: 8], 
+                   m2p64add_in_two[col_counter*64+8  +: 8], 
+                   m2p64add_in_two[col_counter*64+16 +: 8], 
+                   m2p64add_in_two[col_counter*64+24 +: 8], 
+                   m2p64add_in_two[col_counter*64+32 +: 8], 
+                   m2p64add_in_two[col_counter*64+40 +: 8], 
+                   m2p64add_in_two[col_counter*64+48 +: 8], 
+                   m2p64add_in_two[col_counter*64+56 +: 8]};
+
+assign oper_two_2c = ~oper_two + 1'b1;
+
+//Mask Inputs
+assign s1_oper_one = lfsr_in;
+assign s1_oper_two = ~lfsr_in;
+assign s2_oper_one = oper_one ^ lfsr_in;
+assign s2_oper_two = oper_two_2c ~^ lfsr_in;
+
+//KSA
+kalyna_ksa_fom ksa64_ins (.s1_A(s1_oper_one), .s2_A(s2_oper_one), .s1_B(s1_oper_two), .s2_B(s2_oper_two), .s1_S(s1_oper_out), .s2_S(s2_oper_out));
+
+//Output of the masked design
+assign oper_out = s1_oper_out ^ s2_oper_out;
+
+//Addition Output
+assign m2p64add_out = reg_add_out;
+
+endmodule
+
+//MODULO 2 ADDITION SERIAL 64-BIT
+module kalyna_mod2_add_serial64b #(parameter BLOCK_SIZE = 512) (clk, rst, m2add_start, m2add_in_one, m2add_in_two, m2add_out, m2add_rdy);
+
+input clk, rst, m2add_start;
+input [BLOCK_SIZE-1:0] m2add_in_one, m2add_in_two;
+output [BLOCK_SIZE-1:0] m2add_out;
+output reg m2add_rdy;
+
+localparam col_m1 = (BLOCK_SIZE == 512) ? 3'd7 : (BLOCK_SIZE == 256) ? 2'd3 : 1'd1;
+localparam col_cnt = (BLOCK_SIZE == 512) ? 4'd8 : (BLOCK_SIZE == 256) ? 3'd4 : 2'd2;
+localparam col_size = (BLOCK_SIZE == 512) ? 3'd4 : (BLOCK_SIZE == 256) ? 2'd3 : 2'd2;
+
+wire [63:0] xor_out;
+reg [col_size-1:0] col_counter;
+reg [BLOCK_SIZE-1:0] reg_xor_out;
+
+//Counter
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    col_counter <= {col_size{1'b0}};
+  end
+  else begin
+    if (m2add_start == 1'b0) begin
+      col_counter <= {col_size{1'b0}};
+    end
+    else begin
+      if (col_counter < col_cnt) begin
+        col_counter <= col_counter + 1'b1;
+      end
+      else begin
+        col_counter <= {col_size{1'b0}};
+      end
+    end
+  end
+end
+
+//Assignment to the Output
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    m2add_rdy <= 1'b0;
+    reg_xor_out <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (m2add_start == 1'b0) begin
+      m2add_rdy <= 1'b0;
+      reg_xor_out <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      reg_xor_out[col_counter*64 +: 64] <= xor_out;
+      if (col_counter == col_m1) begin
+        m2add_rdy <= 1'b1;
+      end
+      else begin
+        m2add_rdy <= 1'b0;
+      end
+    end
+  end
+end
+
+//XOR operation
+assign xor_out = m2add_in_one[col_counter*64 +: 64] ^ m2add_in_two[col_counter*64 +: 64];
+
+//Addition Output
+assign m2add_out = reg_xor_out;
+
+endmodule
+
+//MODULO 2 ADDITION SERIAL 64-BIT - First-Order Masking implementation
+module kalyna_mod2_add_serial64b_fom #(parameter BLOCK_SIZE = 512) (clk, rst, m2add_start, m2add_in_one, m2add_in_two, lfsr_in, m2add_out, m2add_rdy);
+
+input clk, rst, m2add_start;
+input [BLOCK_SIZE-1:0] m2add_in_one, m2add_in_two;
+input [63:0] lfsr_in;
+output [BLOCK_SIZE-1:0] m2add_out;
+output reg m2add_rdy;
+
+localparam col_m1 = (BLOCK_SIZE == 512) ? 3'd7 : (BLOCK_SIZE == 256) ? 2'd3 : 1'd1;
+localparam col_cnt = (BLOCK_SIZE == 512) ? 4'd8 : (BLOCK_SIZE == 256) ? 3'd4 : 2'd2;
+localparam col_size = (BLOCK_SIZE == 512) ? 3'd4 : (BLOCK_SIZE == 256) ? 2'd3 : 2'd2;
+
+wire [63:0] xor_out, s1_xor_out, s2_xor_out, xor_in_one, s1_xor_in_one, s2_xor_in_one, xor_in_two, s1_xor_in_two, s2_xor_in_two;
+reg [col_size-1:0] col_counter;
+reg [BLOCK_SIZE-1:0] reg_xor_out;
+
+//Counter
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    col_counter <= {col_size{1'b0}};
+  end
+  else begin
+    if (m2add_start == 1'b0) begin
+      col_counter <= {col_size{1'b0}};
+    end
+    else begin
+      if (col_counter < col_cnt) begin
+        col_counter <= col_counter + 1'b1;
+      end
+      else begin
+        col_counter <= {col_size{1'b0}};
+      end
+    end
+  end
+end
+
+//Assignment to the Output
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    m2add_rdy <= 1'b0;
+    reg_xor_out <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (m2add_start == 1'b0) begin
+      m2add_rdy <= 1'b0;
+      reg_xor_out <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      reg_xor_out[col_counter*64 +: 64] <= xor_out;
+      if (col_counter == col_m1) begin
+        m2add_rdy <= 1'b1;
+      end
+      else begin
+        m2add_rdy <= 1'b0;
+      end
+    end
+  end
+end
+
+//Inputs to the XOR operation
+assign xor_in_one = m2add_in_one[col_counter*64 +: 64];
+assign xor_in_two = m2add_in_two[col_counter*64 +: 64];
+
+//Masked Inputs
+assign s1_xor_in_one = lfsr_in;
+assign s1_xor_in_two = ~lfsr_in;
+assign s2_xor_in_one = xor_in_one ^ lfsr_in;
+assign s2_xor_in_two = xor_in_two ~^ lfsr_in;
+
+//XOR operation
+kalyna_xor64_fom xor64_ins (.s1_A(s1_xor_in_one), .s2_A(s2_xor_in_one), .s1_B(s1_xor_in_two), .s2_B(s2_xor_in_two), .s1_Z(s1_xor_out), .s2_Z(s2_xor_out) );
+
+//Output od the masked design
+assign xor_out = s1_xor_out ^ s2_xor_out;
+
+//Addition Output
+assign m2add_out = reg_xor_out;
+
+endmodule
+
+//PERMUTE STATE
+module kalyna_permute_state #(parameter BLOCK_SIZE = 512) (ps_in, ps_out);
+
+input [BLOCK_SIZE-1:0] ps_in;
+output reg [BLOCK_SIZE-1:0] ps_out;
+
+localparam col_cnt = (BLOCK_SIZE == 512) ? 4'd8 : (BLOCK_SIZE == 256)  ? 3'd4 : 2'd2;
+localparam col_size = (BLOCK_SIZE == 512) ? 3'd4 : (BLOCK_SIZE == 256) ? 2'd3 : 2'd2;
+
+reg [3:0] i;
+reg [col_size-1:0] j;
+
+always @ (*) begin
+  for (i=0; i<8; i=i+1) begin
+    for (j=0; j<col_cnt; j=j+1) begin
+      ps_out[BLOCK_SIZE-(j*64+i*8)-8 +: 8] = ps_in[BLOCK_SIZE-(((j-(i*BLOCK_SIZE)/512) % col_cnt)*64+i*8)-8 +: 8];
+    end
+  end
+end
+
+endmodule
+
+//INVERSE PERMUTE STATE
+module kalyna_inv_permute_state #(parameter BLOCK_SIZE = 512) (ps_in, ps_out);
+
+input [BLOCK_SIZE-1:0] ps_in;
+output reg [BLOCK_SIZE-1:0] ps_out;
+
+localparam col_cnt = (BLOCK_SIZE == 512) ? 4'd8 : (BLOCK_SIZE == 256)  ? 3'd4 : 2'd2;
+localparam col_size = (BLOCK_SIZE == 512) ? 3'd4 : (BLOCK_SIZE == 256) ? 2'd3 : 2'd2;
+
+reg [3:0] i;
+reg [col_size-1:0] j;
+
+always @ (*) begin
+  for (i=0; i<8; i=i+1) begin
+    for (j=0; j<col_cnt; j=j+1) begin
+      ps_out[BLOCK_SIZE-(j*64+i*8)-8 +: 8] = ps_in[BLOCK_SIZE-(((j+(i*BLOCK_SIZE)/512) % col_cnt)*64+i*8)-8 +: 8];
+    end
+  end
+end
+
+endmodule
+
+//MIX COLUMN - 64BIT
+module kalyna_mix_column_64b (mc_in, mc_out);
+
+input [63:0] mc_in;
+output [63:0] mc_out;
+
+`ifdef OPT
+  kalyna_cmvm_gf_opt cmvm_ins (.mds_in0 (mc_in [63 : 56]), 
+                        .mds_in1 (mc_in [55 : 48]), 
+                        .mds_in2 (mc_in [47 : 40]), 
+                        .mds_in3 (mc_in [39 : 32]), 
+                        .mds_in4 (mc_in [31 : 24]), 
+                        .mds_in5 (mc_in [23 : 16]), 
+                        .mds_in6 (mc_in [15 : 8]), 
+                        .mds_in7 (mc_in [7  : 0]), 
+                        .mds_out0(mc_out[63 : 56]), 
+                        .mds_out1(mc_out[55 : 48]), 
+                        .mds_out2(mc_out[47 : 40]), 
+                        .mds_out3(mc_out[39 : 32]), 
+                        .mds_out4(mc_out[31 : 24]), 
+                        .mds_out5(mc_out[23 : 16]), 
+                        .mds_out6(mc_out[15 : 8]), 
+                        .mds_out7(mc_out[7  : 0]));
+`elsif NOOPT
+  kalyna_cmvm_gf cmvm_ins (.mds_in0 (mc_in [63 : 56]), 
+                    .mds_in1 (mc_in [55 : 48]), 
+                    .mds_in2 (mc_in [47 : 40]), 
+                    .mds_in3 (mc_in [39 : 32]), 
+                    .mds_in4 (mc_in [31 : 24]), 
+                    .mds_in5 (mc_in [23 : 16]), 
+                    .mds_in6 (mc_in [15 : 8]), 
+                    .mds_in7 (mc_in [7  : 0]), 
+                    .mds_out0(mc_out[63 : 56]), 
+                    .mds_out1(mc_out[55 : 48]), 
+                    .mds_out2(mc_out[47 : 40]), 
+                    .mds_out3(mc_out[39 : 32]), 
+                    .mds_out4(mc_out[31 : 24]), 
+                    .mds_out5(mc_out[23 : 16]), 
+                    .mds_out6(mc_out[15 : 8]), 
+                    .mds_out7(mc_out[7  : 0]));
+`endif
+
+endmodule
+
+//MIX COLUMN - 64BIT - secure implementation
+module kalyna_mix_column_64b_fom (s1_mc_in, s2_mc_in, s1_mc_out, s2_mc_out);
+
+input [63:0] s1_mc_in, s2_mc_in;
+output [63:0] s1_mc_out, s2_mc_out;
+
+kalyna_cmvm_gf_opt_fom cmvm_ins (.s1_mds_in0 (s1_mc_in [63 : 56]), 
+                          .s1_mds_in1 (s1_mc_in [55 : 48]), 
+                          .s1_mds_in2 (s1_mc_in [47 : 40]), 
+                          .s1_mds_in3 (s1_mc_in [39 : 32]), 
+                          .s1_mds_in4 (s1_mc_in [31 : 24]), 
+                          .s1_mds_in5 (s1_mc_in [23 : 16]), 
+                          .s1_mds_in6 (s1_mc_in [15 : 8]), 
+                          .s1_mds_in7 (s1_mc_in [7  : 0]), 
+                          .s2_mds_in0 (s2_mc_in [63 : 56]), 
+                          .s2_mds_in1 (s2_mc_in [55 : 48]), 
+                          .s2_mds_in2 (s2_mc_in [47 : 40]), 
+                          .s2_mds_in3 (s2_mc_in [39 : 32]), 
+                          .s2_mds_in4 (s2_mc_in [31 : 24]), 
+                          .s2_mds_in5 (s2_mc_in [23 : 16]), 
+                          .s2_mds_in6 (s2_mc_in [15 : 8]), 
+                          .s2_mds_in7 (s2_mc_in [7  : 0]), 
+                          .s1_mds_out0(s1_mc_out[63 : 56]), 
+                          .s1_mds_out1(s1_mc_out[55 : 48]), 
+                          .s1_mds_out2(s1_mc_out[47 : 40]), 
+                          .s1_mds_out3(s1_mc_out[39 : 32]), 
+                          .s1_mds_out4(s1_mc_out[31 : 24]), 
+                          .s1_mds_out5(s1_mc_out[23 : 16]), 
+                          .s1_mds_out6(s1_mc_out[15 : 8]), 
+                          .s1_mds_out7(s1_mc_out[7  : 0]),
+                          .s2_mds_out0(s2_mc_out[63 : 56]), 
+                          .s2_mds_out1(s2_mc_out[55 : 48]), 
+                          .s2_mds_out2(s2_mc_out[47 : 40]), 
+                          .s2_mds_out3(s2_mc_out[39 : 32]), 
+                          .s2_mds_out4(s2_mc_out[31 : 24]), 
+                          .s2_mds_out5(s2_mc_out[23 : 16]), 
+                          .s2_mds_out6(s2_mc_out[15 : 8]), 
+                          .s2_mds_out7(s2_mc_out[7  : 0]));
+
+endmodule
+
+//INVERSE MIX COLUMN - 64BIT
+module kalyna_inv_mix_column_64b (mc_in, mc_out);
+
+input [63:0] mc_in;
+output [63:0] mc_out;
+
+`ifdef OPT
+  kalyna_inv_cmvm_gf_opt inv_cmvm_ins (.mds_in0 (mc_in [63 : 56]), 
+                                .mds_in1 (mc_in [55 : 48]), 
+                                .mds_in2 (mc_in [47 : 40]), 
+                                .mds_in3 (mc_in [39 : 32]), 
+                                .mds_in4 (mc_in [31 : 24]), 
+                                .mds_in5 (mc_in [23 : 16]), 
+                                .mds_in6 (mc_in [15 : 8]), 
+                                .mds_in7 (mc_in [7  : 0]), 
+                                .mds_out0(mc_out[63 : 56]), 
+                                .mds_out1(mc_out[55 : 48]), 
+                                .mds_out2(mc_out[47 : 40]), 
+                                .mds_out3(mc_out[39 : 32]), 
+                                .mds_out4(mc_out[31 : 24]), 
+                                .mds_out5(mc_out[23 : 16]), 
+                                .mds_out6(mc_out[15 : 8]), 
+                                .mds_out7(mc_out[7  : 0]));
+`elsif NOOPT
+  kalyna_inv_cmvm_gf inv_cmvm_ins (.mds_in0 (mc_in [63 : 56]), 
+                            .mds_in1 (mc_in [55 : 48]), 
+                            .mds_in2 (mc_in [47 : 40]), 
+                            .mds_in3 (mc_in [39 : 32]), 
+                            .mds_in4 (mc_in [31 : 24]), 
+                            .mds_in5 (mc_in [23 : 16]), 
+                            .mds_in6 (mc_in [15 : 8]), 
+                            .mds_in7 (mc_in [7  : 0]), 
+                            .mds_out0(mc_out[63 : 56]), 
+                            .mds_out1(mc_out[55 : 48]), 
+                            .mds_out2(mc_out[47 : 40]), 
+                            .mds_out3(mc_out[39 : 32]), 
+                            .mds_out4(mc_out[31 : 24]), 
+                            .mds_out5(mc_out[23 : 16]), 
+                            .mds_out6(mc_out[15 : 8]), 
+                            .mds_out7(mc_out[7  : 0]));
+`endif
+
+endmodule
+
+//INVERSE MIX COLUMN - 64BIT - First-Order Masking
+module kalyna_inv_mix_column_64b_fom (s1_mc_in, s2_mc_in, s1_mc_out, s2_mc_out);
+
+input [63:0] s1_mc_in, s2_mc_in;
+output [63:0] s1_mc_out, s2_mc_out;
+
+kalyna_inv_cmvm_gf_opt_fom inv_cmvm_ins (.s1_mds_in0 (s1_mc_in [63 : 56]), 
+                                  .s1_mds_in1 (s1_mc_in [55 : 48]), 
+                                  .s1_mds_in2 (s1_mc_in [47 : 40]), 
+                                  .s1_mds_in3 (s1_mc_in [39 : 32]), 
+                                  .s1_mds_in4 (s1_mc_in [31 : 24]), 
+                                  .s1_mds_in5 (s1_mc_in [23 : 16]), 
+                                  .s1_mds_in6 (s1_mc_in [15 : 8]), 
+                                  .s1_mds_in7 (s1_mc_in [7  : 0]), 
+                                  .s2_mds_in0 (s2_mc_in [63 : 56]),
+                                  .s2_mds_in1 (s2_mc_in [55 : 48]),
+                                  .s2_mds_in2 (s2_mc_in [47 : 40]),
+                                  .s2_mds_in3 (s2_mc_in [39 : 32]),
+                                  .s2_mds_in4 (s2_mc_in [31 : 24]),
+                                  .s2_mds_in5 (s2_mc_in [23 : 16]),
+                                  .s2_mds_in6 (s2_mc_in [15 : 8]), 
+                                  .s2_mds_in7 (s2_mc_in [7  : 0]), 
+                                  .s1_mds_out0(s1_mc_out[63 : 56]), 
+                                  .s1_mds_out1(s1_mc_out[55 : 48]), 
+                                  .s1_mds_out2(s1_mc_out[47 : 40]), 
+                                  .s1_mds_out3(s1_mc_out[39 : 32]), 
+                                  .s1_mds_out4(s1_mc_out[31 : 24]), 
+                                  .s1_mds_out5(s1_mc_out[23 : 16]), 
+                                  .s1_mds_out6(s1_mc_out[15 : 8]), 
+                                  .s1_mds_out7(s1_mc_out[7  : 0]),
+                                  .s2_mds_out0(s2_mc_out[63 : 56]), 
+                                  .s2_mds_out1(s2_mc_out[55 : 48]), 
+                                  .s2_mds_out2(s2_mc_out[47 : 40]), 
+                                  .s2_mds_out3(s2_mc_out[39 : 32]), 
+                                  .s2_mds_out4(s2_mc_out[31 : 24]), 
+                                  .s2_mds_out5(s2_mc_out[23 : 16]), 
+                                  .s2_mds_out6(s2_mc_out[15 : 8]), 
+                                  .s2_mds_out7(s2_mc_out[7  : 0]));
+
+endmodule
+
+//MIX COLUMN
+module kalyna_mix_column #(parameter BLOCK_SIZE = 512) (mc_in, mc_out);
+
+input [BLOCK_SIZE-1:0] mc_in;
+output [BLOCK_SIZE-1:0] mc_out;
+
+localparam col_cnt = (BLOCK_SIZE == 512) ? 4'd8 : (BLOCK_SIZE == 256)  ? 3'd4 : 2'd2;
+
+genvar i;
+generate
+  for (i=0; i<col_cnt; i=i+1) begin
+    `ifdef OPT
+       kalyna_cmvm_gf_opt cmvm_ins (.mds_in0 (mc_in [BLOCK_SIZE-i*64-1    : BLOCK_SIZE-i*64-8]), 
+                             .mds_in1 (mc_in [BLOCK_SIZE-i*64-8-1  : BLOCK_SIZE-i*64-16]), 
+                             .mds_in2 (mc_in [BLOCK_SIZE-i*64-16-1 : BLOCK_SIZE-i*64-24]), 
+                             .mds_in3 (mc_in [BLOCK_SIZE-i*64-24-1 : BLOCK_SIZE-i*64-32]), 
+                             .mds_in4 (mc_in [BLOCK_SIZE-i*64-32-1 : BLOCK_SIZE-i*64-40]), 
+                             .mds_in5 (mc_in [BLOCK_SIZE-i*64-40-1 : BLOCK_SIZE-i*64-48]), 
+                             .mds_in6 (mc_in [BLOCK_SIZE-i*64-48-1 : BLOCK_SIZE-i*64-56]), 
+                             .mds_in7 (mc_in [BLOCK_SIZE-i*64-56-1 : BLOCK_SIZE-i*64-64]), 
+                             .mds_out0(mc_out[BLOCK_SIZE-i*64-1    : BLOCK_SIZE-i*64-8]), 
+                             .mds_out1(mc_out[BLOCK_SIZE-i*64-8-1  : BLOCK_SIZE-i*64-16]), 
+                             .mds_out2(mc_out[BLOCK_SIZE-i*64-16-1 : BLOCK_SIZE-i*64-24]), 
+                             .mds_out3(mc_out[BLOCK_SIZE-i*64-24-1 : BLOCK_SIZE-i*64-32]), 
+                             .mds_out4(mc_out[BLOCK_SIZE-i*64-32-1 : BLOCK_SIZE-i*64-40]), 
+                             .mds_out5(mc_out[BLOCK_SIZE-i*64-40-1 : BLOCK_SIZE-i*64-48]), 
+                             .mds_out6(mc_out[BLOCK_SIZE-i*64-48-1 : BLOCK_SIZE-i*64-56]), 
+                             .mds_out7(mc_out[BLOCK_SIZE-i*64-56-1 : BLOCK_SIZE-i*64-64]));
+    `elsif NOOPT
+       kalyna_cmvm_gf cmvm_ins (.mds_in0 (mc_in [BLOCK_SIZE-i*64-1    : BLOCK_SIZE-i*64-8]), 
+                         .mds_in1 (mc_in [BLOCK_SIZE-i*64-8-1  : BLOCK_SIZE-i*64-16]), 
+                         .mds_in2 (mc_in [BLOCK_SIZE-i*64-16-1 : BLOCK_SIZE-i*64-24]), 
+                         .mds_in3 (mc_in [BLOCK_SIZE-i*64-24-1 : BLOCK_SIZE-i*64-32]), 
+                         .mds_in4 (mc_in [BLOCK_SIZE-i*64-32-1 : BLOCK_SIZE-i*64-40]), 
+                         .mds_in5 (mc_in [BLOCK_SIZE-i*64-40-1 : BLOCK_SIZE-i*64-48]), 
+                         .mds_in6 (mc_in [BLOCK_SIZE-i*64-48-1 : BLOCK_SIZE-i*64-56]), 
+                         .mds_in7 (mc_in [BLOCK_SIZE-i*64-56-1 : BLOCK_SIZE-i*64-64]), 
+                         .mds_out0(mc_out[BLOCK_SIZE-i*64-1    : BLOCK_SIZE-i*64-8]), 
+                         .mds_out1(mc_out[BLOCK_SIZE-i*64-8-1  : BLOCK_SIZE-i*64-16]), 
+                         .mds_out2(mc_out[BLOCK_SIZE-i*64-16-1 : BLOCK_SIZE-i*64-24]), 
+                         .mds_out3(mc_out[BLOCK_SIZE-i*64-24-1 : BLOCK_SIZE-i*64-32]), 
+                         .mds_out4(mc_out[BLOCK_SIZE-i*64-32-1 : BLOCK_SIZE-i*64-40]), 
+                         .mds_out5(mc_out[BLOCK_SIZE-i*64-40-1 : BLOCK_SIZE-i*64-48]), 
+                         .mds_out6(mc_out[BLOCK_SIZE-i*64-48-1 : BLOCK_SIZE-i*64-56]), 
+                         .mds_out7(mc_out[BLOCK_SIZE-i*64-56-1 : BLOCK_SIZE-i*64-64]));
+    `endif
+  end
+endgenerate
+
+endmodule
+
+//INVERSE MIX COLUMN
+module kalyna_inv_mix_column #(parameter BLOCK_SIZE = 512) (mc_in, mc_out);
+
+input [BLOCK_SIZE-1:0] mc_in;
+output [BLOCK_SIZE-1:0] mc_out;
+
+localparam col_cnt = (BLOCK_SIZE == 512) ? 4'd8 : (BLOCK_SIZE == 256)  ? 3'd4 : 2'd2;
+
+genvar i;
+generate
+  for (i=0; i<col_cnt; i=i+1) begin
+    `ifdef OPT
+       kalyna_inv_cmvm_gf_opt inv_cmvm_ins (.mds_in0 (mc_in [BLOCK_SIZE-i*64-1    : BLOCK_SIZE-i*64-8]), 
+                                     .mds_in1 (mc_in [BLOCK_SIZE-i*64-8-1  : BLOCK_SIZE-i*64-16]), 
+                                     .mds_in2 (mc_in [BLOCK_SIZE-i*64-16-1 : BLOCK_SIZE-i*64-24]), 
+                                     .mds_in3 (mc_in [BLOCK_SIZE-i*64-24-1 : BLOCK_SIZE-i*64-32]), 
+                                     .mds_in4 (mc_in [BLOCK_SIZE-i*64-32-1 : BLOCK_SIZE-i*64-40]), 
+                                     .mds_in5 (mc_in [BLOCK_SIZE-i*64-40-1 : BLOCK_SIZE-i*64-48]), 
+                                     .mds_in6 (mc_in [BLOCK_SIZE-i*64-48-1 : BLOCK_SIZE-i*64-56]), 
+                                     .mds_in7 (mc_in [BLOCK_SIZE-i*64-56-1 : BLOCK_SIZE-i*64-64]), 
+                                     .mds_out0(mc_out[BLOCK_SIZE-i*64-1    : BLOCK_SIZE-i*64-8]), 
+                                     .mds_out1(mc_out[BLOCK_SIZE-i*64-8-1  : BLOCK_SIZE-i*64-16]), 
+                                     .mds_out2(mc_out[BLOCK_SIZE-i*64-16-1 : BLOCK_SIZE-i*64-24]), 
+                                     .mds_out3(mc_out[BLOCK_SIZE-i*64-24-1 : BLOCK_SIZE-i*64-32]), 
+                                     .mds_out4(mc_out[BLOCK_SIZE-i*64-32-1 : BLOCK_SIZE-i*64-40]), 
+                                     .mds_out5(mc_out[BLOCK_SIZE-i*64-40-1 : BLOCK_SIZE-i*64-48]), 
+                                     .mds_out6(mc_out[BLOCK_SIZE-i*64-48-1 : BLOCK_SIZE-i*64-56]), 
+                                     .mds_out7(mc_out[BLOCK_SIZE-i*64-56-1 : BLOCK_SIZE-i*64-64]));
+    `elsif NOOPT
+       kalyna_inv_cmvm_gf inv_cmvm_ins (.mds_in0 (mc_in [BLOCK_SIZE-i*64-1    : BLOCK_SIZE-i*64-8]), 
+                                 .mds_in1 (mc_in [BLOCK_SIZE-i*64-8-1  : BLOCK_SIZE-i*64-16]), 
+                                 .mds_in2 (mc_in [BLOCK_SIZE-i*64-16-1 : BLOCK_SIZE-i*64-24]), 
+                                 .mds_in3 (mc_in [BLOCK_SIZE-i*64-24-1 : BLOCK_SIZE-i*64-32]), 
+                                 .mds_in4 (mc_in [BLOCK_SIZE-i*64-32-1 : BLOCK_SIZE-i*64-40]), 
+                                 .mds_in5 (mc_in [BLOCK_SIZE-i*64-40-1 : BLOCK_SIZE-i*64-48]), 
+                                 .mds_in6 (mc_in [BLOCK_SIZE-i*64-48-1 : BLOCK_SIZE-i*64-56]), 
+                                 .mds_in7 (mc_in [BLOCK_SIZE-i*64-56-1 : BLOCK_SIZE-i*64-64]), 
+                                 .mds_out0(mc_out[BLOCK_SIZE-i*64-1    : BLOCK_SIZE-i*64-8]), 
+                                 .mds_out1(mc_out[BLOCK_SIZE-i*64-8-1  : BLOCK_SIZE-i*64-16]), 
+                                 .mds_out2(mc_out[BLOCK_SIZE-i*64-16-1 : BLOCK_SIZE-i*64-24]), 
+                                 .mds_out3(mc_out[BLOCK_SIZE-i*64-24-1 : BLOCK_SIZE-i*64-32]), 
+                                 .mds_out4(mc_out[BLOCK_SIZE-i*64-32-1 : BLOCK_SIZE-i*64-40]), 
+                                 .mds_out5(mc_out[BLOCK_SIZE-i*64-40-1 : BLOCK_SIZE-i*64-48]), 
+                                 .mds_out6(mc_out[BLOCK_SIZE-i*64-48-1 : BLOCK_SIZE-i*64-56]), 
+                                 .mds_out7(mc_out[BLOCK_SIZE-i*64-56-1 : BLOCK_SIZE-i*64-64]));
+    `endif
+  end
+endgenerate
+
+endmodule
+
+//COMBINATION OF SUBSTITUTE BYTE PERMUTE STATE AND MIX COLUMN OPERATIONS IN BLOCK_SIZE
+module kalyna_sbpsmc #(parameter BLOCK_SIZE = 512) (sbpsmc_in, sbpsmc_out);
+
+input [BLOCK_SIZE-1:0] sbpsmc_in;
+output [BLOCK_SIZE-1:0] sbpsmc_out;
+
+//Variables
+wire [BLOCK_SIZE-1:0] sb_out, ps_out;
+
+kalyna_substitute_byte_foursbox #(.BLOCK_SIZE(BLOCK_SIZE)) sb_ins (.sb_in(sbpsmc_in), .sb_out(sb_out));
+kalyna_permute_state #(.BLOCK_SIZE(BLOCK_SIZE)) ps_ins (.ps_in(sb_out), .ps_out(ps_out));
+kalyna_mix_column #(.BLOCK_SIZE(BLOCK_SIZE)) mc_ins (.mc_in(ps_out), .mc_out(sbpsmc_out));
+
+endmodule
+
+//COMBINATION OF INVERSE SUBSTITUTE BYTE PERMUTE STATE AND MIX COLUMN OPERATIONS IN BLOCK_SIZE
+module kalyna_inv_sbpsmc #(parameter BLOCK_SIZE = 512) (sbpsmc_in, sbpsmc_out);
+
+input [BLOCK_SIZE-1:0] sbpsmc_in;
+output [BLOCK_SIZE-1:0] sbpsmc_out;
+
+//Variables
+wire [BLOCK_SIZE-1:0] mc_out, ps_out;
+
+kalyna_inv_mix_column #(.BLOCK_SIZE(BLOCK_SIZE)) mc_ins (.mc_in(sbpsmc_in), .mc_out(mc_out));
+kalyna_inv_permute_state #(.BLOCK_SIZE(BLOCK_SIZE)) ps_ins (.ps_in(mc_out), .ps_out(ps_out));
+kalyna_inv_substitute_byte_foursbox #(.BLOCK_SIZE(BLOCK_SIZE)) sb_ins (.sb_in(ps_out), .sb_out(sbpsmc_out));
+
+endmodule
+
+//COMBINATION OF SUBSTITUTE BYTE PERMUTE STATE AND MIX COLUMN OPERATIONS IN A 64-BIT BLOCK
+module kalyna_sbpsmc_serial64b #(parameter BLOCK_SIZE = 512) (clk, rst, sbpsmc_start, sbpsmc_in, sbpsmc_out, sbpsmc_rdy);
+
+input clk, rst, sbpsmc_start;
+input [BLOCK_SIZE-1:0] sbpsmc_in;
+output [BLOCK_SIZE-1:0] sbpsmc_out;
+output reg sbpsmc_rdy;
+
+localparam col_m1 = (BLOCK_SIZE == 512) ? 3'd7 : (BLOCK_SIZE == 256) ? 2'd3 : 1'd1;
+localparam col_cnt = (BLOCK_SIZE == 512) ? 4'd8 : (BLOCK_SIZE == 256) ? 3'd4 : 2'd2;
+localparam col_size = (BLOCK_SIZE == 512) ? 3'd4 : (BLOCK_SIZE == 256) ? 2'd3 : 2'd2;
+
+//Variables
+wire [63:0] sb_out, mc_out;
+reg [col_size-1:0] col_counter;
+reg [BLOCK_SIZE-1:0] reg_sbpsmc_out;
+reg [63:0] sb_per_in;
+integer i;
+
+//Counter to manipulate each column
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    col_counter <= {col_size{1'b0}};
+  end
+  else begin
+    if (sbpsmc_start == 1'b0) begin
+      col_counter <= {col_size{1'b0}};
+    end
+    else begin
+      if (col_counter < col_cnt) begin
+        col_counter <= col_counter + 1'b1;
+      end
+      else begin
+        col_counter <= {col_size{1'b0}};
+      end
+    end
+  end
+end
+
+//Assignment to the Output
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    sbpsmc_rdy <= 1'b0;
+    reg_sbpsmc_out <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (sbpsmc_start == 1'b0) begin
+      sbpsmc_rdy <= 1'b0;
+      reg_sbpsmc_out <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      reg_sbpsmc_out[(col_m1-col_counter)*64 +: 64] <= mc_out;
+      if (col_counter == col_m1) begin
+        sbpsmc_rdy <= 1'b1;
+      end
+      else begin
+        sbpsmc_rdy <= 1'b0;
+      end
+    end
+  end
+end
+
+//Permutation
+always @ (*) begin
+  if (BLOCK_SIZE == 512) begin
+    if (col_counter < col_cnt) begin
+      sb_per_in = {sbpsmc_in[(BLOCK_SIZE-((col_counter+0) % 8)*64)-8  +: 8],  
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+7) % 8)*64)-16 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+6) % 8)*64)-24 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+5) % 8)*64)-32 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+4) % 8)*64)-40 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+3) % 8)*64)-48 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+2) % 8)*64)-56 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+1) % 8)*64)-64 +: 8]};
+    end
+    else begin
+      sb_per_in = 64'd0;
+    end
+  end
+  else if (BLOCK_SIZE == 256) begin
+    if (col_counter < col_cnt) begin
+      sb_per_in = {sbpsmc_in[(BLOCK_SIZE-((col_counter+0) % 4)*64)-8  +: 8],  
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+0) % 4)*64)-16 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+3) % 4)*64)-24 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+3) % 4)*64)-32 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+2) % 4)*64)-40 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+2) % 4)*64)-48 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+1) % 4)*64)-56 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+1) % 4)*64)-64 +: 8]};
+    end
+    else begin
+      sb_per_in = 64'd0;
+    end
+  end
+  else begin
+    if (col_counter < col_cnt) begin
+      sb_per_in = {sbpsmc_in[(BLOCK_SIZE-((col_counter+0) % 2)*64)-8  +: 8],  
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+0) % 2)*64)-16 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+0) % 2)*64)-24 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+0) % 2)*64)-32 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+1) % 2)*64)-40 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+1) % 2)*64)-48 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+1) % 2)*64)-56 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+1) % 2)*64)-64 +: 8]};
+    end
+    else begin
+      sb_per_in = 64'd0;
+    end
+  end
+end
+
+//Byte Substitution and Mix Column
+kalyna_substitute_byte_64b sb64b_ins (.sb_in(sb_per_in), .sb_out(sb_out));
+kalyna_mix_column_64b mc64b_ins (.mc_in(sb_out), .mc_out(mc_out));
+
+assign sbpsmc_out = reg_sbpsmc_out;
+
+endmodule
+
+//COMBINATION OF SUBSTITUTE BYTE PERMUTE STATE AND MIX COLUMN OPERATIONS IN A 64-BIT BLOCK - First-Order Masking implementation
+module kalyna_sbpsmc_serial64b_fom #(parameter BLOCK_SIZE = 512) (clk, rst, sbpsmc_start, sbpsmc_in, lfsr_in, sbpsmc_out, sbpsmc_rdy);
+
+input clk, rst, sbpsmc_start;
+input [BLOCK_SIZE-1:0] sbpsmc_in;
+input [63:0] lfsr_in;
+output [BLOCK_SIZE-1:0] sbpsmc_out;
+output reg sbpsmc_rdy;
+
+localparam col_m1 = (BLOCK_SIZE == 512) ? 3'd7 : (BLOCK_SIZE == 256) ? 2'd3 : 1'd1;
+localparam col_cnt = (BLOCK_SIZE == 512) ? 4'd8 : (BLOCK_SIZE == 256) ? 3'd4 : 2'd2;
+localparam col_size = (BLOCK_SIZE == 512) ? 3'd4 : (BLOCK_SIZE == 256) ? 2'd3 : 2'd2;
+
+//Variables
+wire [63:0] s1_sb_out, s2_sb_out, s1_sb_per_in, s2_sb_per_in, mc_out, s1_mc_out, s2_mc_out;
+reg [col_size-1:0] col_counter;
+reg [BLOCK_SIZE-1:0] reg_sbpsmc_out;
+reg [63:0] sb_per_in;
+integer i;
+
+//Counter to manipulate each column
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    col_counter <= {col_size{1'b0}};
+  end
+  else begin
+    if (sbpsmc_start == 1'b0) begin
+      col_counter <= {col_size{1'b0}};
+    end
+    else begin
+      if (col_counter < col_cnt) begin
+        col_counter <= col_counter + 1'b1;
+      end
+      else begin
+        col_counter <= {col_size{1'b0}};
+      end
+    end
+  end
+end
+
+//Assignment to the Output
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    sbpsmc_rdy <= 1'b0;
+    reg_sbpsmc_out <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (sbpsmc_start == 1'b0) begin
+      sbpsmc_rdy <= 1'b0;
+      reg_sbpsmc_out <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      reg_sbpsmc_out[(col_m1-col_counter)*64 +: 64] <= mc_out;
+      if (col_counter == col_m1) begin
+        sbpsmc_rdy <= 1'b1;
+      end
+      else begin
+        sbpsmc_rdy <= 1'b0;
+      end
+    end
+  end
+end
+
+//Permutation
+always @ (*) begin
+  if (BLOCK_SIZE == 512) begin
+    if (col_counter < col_cnt) begin
+      sb_per_in = {sbpsmc_in[(BLOCK_SIZE-((col_counter+0) % 8)*64)-8  +: 8],  
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+7) % 8)*64)-16 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+6) % 8)*64)-24 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+5) % 8)*64)-32 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+4) % 8)*64)-40 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+3) % 8)*64)-48 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+2) % 8)*64)-56 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+1) % 8)*64)-64 +: 8]};
+    end
+    else begin
+      sb_per_in = 64'd0;
+    end
+  end
+  else if (BLOCK_SIZE == 256) begin
+    if (col_counter < col_cnt) begin
+      sb_per_in = {sbpsmc_in[(BLOCK_SIZE-((col_counter+0) % 4)*64)-8  +: 8],  
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+0) % 4)*64)-16 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+3) % 4)*64)-24 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+3) % 4)*64)-32 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+2) % 4)*64)-40 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+2) % 4)*64)-48 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+1) % 4)*64)-56 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+1) % 4)*64)-64 +: 8]};
+    end
+    else begin
+      sb_per_in = 64'd0;
+    end
+  end
+  else begin
+    if (col_counter < col_cnt) begin
+      sb_per_in = {sbpsmc_in[(BLOCK_SIZE-((col_counter+0) % 2)*64)-8  +: 8],  
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+0) % 2)*64)-16 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+0) % 2)*64)-24 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+0) % 2)*64)-32 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+1) % 2)*64)-40 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+1) % 2)*64)-48 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+1) % 2)*64)-56 +: 8], 
+                   sbpsmc_in[(BLOCK_SIZE-((col_counter+1) % 2)*64)-64 +: 8]};
+    end
+    else begin
+      sb_per_in = 64'd0;
+    end
+  end
+end
+
+//Masked Inputs
+assign s1_sb_per_in = lfsr_in;
+assign s2_sb_per_in = sb_per_in ^ lfsr_in;
+
+//Byte Substitution and Mix Column - First-Order Masking
+kalyna_substitute_byte_64b_fom sb64b_ins (.s1_sb_in(s1_sb_per_in), .s2_sb_in(s2_sb_per_in), .s1_sb_out(s1_sb_out), .s2_sb_out(s2_sb_out));
+kalyna_mix_column_64b_fom mc64b_ins (.s1_mc_in(s1_sb_out), .s2_mc_in(s2_sb_out), .s1_mc_out(s1_mc_out), .s2_mc_out(s2_mc_out));
+
+//Output of the masked design
+assign mc_out = s1_mc_out ^ s2_mc_out;
+
+assign sbpsmc_out = reg_sbpsmc_out;
+
+endmodule
+
+//COMBINATION OF SUBSTITUTE BYTE PERMUTE STATE AND MIX COLUMN OPERATIONS IN A 64-BIT BLOCK
+module kalyna_inv_sbpsmc_serial64b #(parameter BLOCK_SIZE = 512) (clk, rst, sbpsmc_start, sbpsmc_in, sbpsmc_out, sbpsmc_rdy);
+
+input clk, rst, sbpsmc_start;
+input [BLOCK_SIZE-1:0] sbpsmc_in;
+output [BLOCK_SIZE-1:0] sbpsmc_out;
+output reg sbpsmc_rdy;
+
+localparam col_m1 = (BLOCK_SIZE == 512) ? 3'd7 : (BLOCK_SIZE == 256) ? 2'd3 : 1'd1;
+localparam col_cnt = (BLOCK_SIZE == 512) ? 4'd8 : (BLOCK_SIZE == 256) ? 3'd4 : 2'd2;
+localparam col_size = (BLOCK_SIZE == 512) ? 3'd4 : (BLOCK_SIZE == 256) ? 2'd3 : 2'd2;
+
+//Variables
+wire [63:0] sb_out, mc_out, mc_in;
+reg [col_size-1:0] col_counter;
+reg [BLOCK_SIZE-1:0] reg_sbpsmc_out;
+integer i;
+
+//Counter to manipulate each column
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    col_counter <= {col_size{1'b0}};
+  end
+  else begin
+    if (sbpsmc_start == 1'b0) begin
+      col_counter <= {col_size{1'b0}};
+    end
+    else begin
+      if (col_counter < col_cnt) begin
+        col_counter <= col_counter + 1'b1;
+      end
+      else begin
+        col_counter <= {col_size{1'b0}};
+      end
+    end
+  end
+end
+
+//Assignment to the Output
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    sbpsmc_rdy <= 1'b0;
+    reg_sbpsmc_out <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (sbpsmc_start == 1'b0) begin
+      sbpsmc_rdy <= 1'b0;
+      reg_sbpsmc_out <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      if (BLOCK_SIZE == 512) begin
+        if (col_counter < col_cnt) begin
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+0) % 8)*64)-8  +: 8] <= sb_out[63:56];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+7) % 8)*64)-16 +: 8] <= sb_out[55:48];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+6) % 8)*64)-24 +: 8] <= sb_out[47:40];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+5) % 8)*64)-32 +: 8] <= sb_out[39:32];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+4) % 8)*64)-40 +: 8] <= sb_out[31:24];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+3) % 8)*64)-48 +: 8] <= sb_out[23:16];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+2) % 8)*64)-56 +: 8] <= sb_out[15:8];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+1) % 8)*64)-64 +: 8] <= sb_out[7:0];
+        end
+      end
+      else if (BLOCK_SIZE == 256) begin
+        if (col_counter < col_cnt) begin
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+0) % 4)*64)-8  +: 8] <= sb_out[63:56];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+0) % 4)*64)-16 +: 8] <= sb_out[55:48];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+3) % 4)*64)-24 +: 8] <= sb_out[47:40];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+3) % 4)*64)-32 +: 8] <= sb_out[39:32];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+2) % 4)*64)-40 +: 8] <= sb_out[31:24];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+2) % 4)*64)-48 +: 8] <= sb_out[23:16];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+1) % 4)*64)-56 +: 8] <= sb_out[15:8];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+1) % 4)*64)-64 +: 8] <= sb_out[7:0];
+        end
+      end
+      else begin
+        if (col_counter < col_cnt) begin
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+0) % 2)*64)-8  +: 8] <= sb_out[63:56];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+0) % 2)*64)-16 +: 8] <= sb_out[55:48];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+0) % 2)*64)-24 +: 8] <= sb_out[47:40];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+0) % 2)*64)-32 +: 8] <= sb_out[39:32];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+1) % 2)*64)-40 +: 8] <= sb_out[31:24];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+1) % 2)*64)-48 +: 8] <= sb_out[23:16];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+1) % 2)*64)-56 +: 8] <= sb_out[15:8];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+1) % 2)*64)-64 +: 8] <= sb_out[7:0];
+        end
+      end
+      if (col_counter == col_m1) begin
+        sbpsmc_rdy <= 1'b1;
+      end
+      else begin
+        sbpsmc_rdy <= 1'b0;
+      end
+    end
+  end
+end
+
+assign mc_in = sbpsmc_in[(col_m1-col_counter)*64 +:64];
+
+//Inverse Mix Column and Byte Substitution 
+kalyna_inv_mix_column_64b mc64b_ins (.mc_in(mc_in), .mc_out(mc_out));
+kalyna_inv_substitute_byte_64b sb64b_ins (.sb_in(mc_out), .sb_out(sb_out));
+
+assign sbpsmc_out = reg_sbpsmc_out;
+
+endmodule
+
+//COMBINATION OF SUBSTITUTE BYTE PERMUTE STATE AND MIX COLUMN OPERATIONS IN A 64-BIT BLOCK - First-Order Masking
+module kalyna_inv_sbpsmc_serial64b_fom #(parameter BLOCK_SIZE = 512) (clk, rst, sbpsmc_start, sbpsmc_in, lfsr_in, sbpsmc_out, sbpsmc_rdy);
+
+input clk, rst, sbpsmc_start;
+input [63:0] lfsr_in;
+input [BLOCK_SIZE-1:0] sbpsmc_in;
+output [BLOCK_SIZE-1:0] sbpsmc_out;
+output reg sbpsmc_rdy;
+
+localparam col_m1 = (BLOCK_SIZE == 512) ? 3'd7 : (BLOCK_SIZE == 256) ? 2'd3 : 1'd1;
+localparam col_cnt = (BLOCK_SIZE == 512) ? 4'd8 : (BLOCK_SIZE == 256) ? 3'd4 : 2'd2;
+localparam col_size = (BLOCK_SIZE == 512) ? 3'd4 : (BLOCK_SIZE == 256) ? 2'd3 : 2'd2;
+
+//Variables
+wire [63:0] sb_out, s1_sb_out, s2_sb_out, s1_mc_out, s2_mc_out, mc_in, s1_mc_in, s2_mc_in;
+reg [col_size-1:0] col_counter;
+reg [BLOCK_SIZE-1:0] reg_sbpsmc_out;
+integer i;
+
+//Counter to manipulate each column
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    col_counter <= {col_size{1'b0}};
+  end
+  else begin
+    if (sbpsmc_start == 1'b0) begin
+      col_counter <= {col_size{1'b0}};
+    end
+    else begin
+      if (col_counter < col_cnt) begin
+        col_counter <= col_counter + 1'b1;
+      end
+      else begin
+        col_counter <= {col_size{1'b0}};
+      end
+    end
+  end
+end
+
+//Assignment to the Output
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    sbpsmc_rdy <= 1'b0;
+    reg_sbpsmc_out <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (sbpsmc_start == 1'b0) begin
+      sbpsmc_rdy <= 1'b0;
+      reg_sbpsmc_out <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      if (BLOCK_SIZE == 512) begin
+        if (col_counter < col_cnt) begin
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+0) % 8)*64)-8  +: 8] <= sb_out[63:56];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+7) % 8)*64)-16 +: 8] <= sb_out[55:48];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+6) % 8)*64)-24 +: 8] <= sb_out[47:40];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+5) % 8)*64)-32 +: 8] <= sb_out[39:32];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+4) % 8)*64)-40 +: 8] <= sb_out[31:24];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+3) % 8)*64)-48 +: 8] <= sb_out[23:16];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+2) % 8)*64)-56 +: 8] <= sb_out[15:8];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+1) % 8)*64)-64 +: 8] <= sb_out[7:0];
+        end
+      end
+      else if (BLOCK_SIZE == 256) begin
+        if (col_counter < col_cnt) begin
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+0) % 4)*64)-8  +: 8] <= sb_out[63:56];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+0) % 4)*64)-16 +: 8] <= sb_out[55:48];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+3) % 4)*64)-24 +: 8] <= sb_out[47:40];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+3) % 4)*64)-32 +: 8] <= sb_out[39:32];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+2) % 4)*64)-40 +: 8] <= sb_out[31:24];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+2) % 4)*64)-48 +: 8] <= sb_out[23:16];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+1) % 4)*64)-56 +: 8] <= sb_out[15:8];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+1) % 4)*64)-64 +: 8] <= sb_out[7:0];
+        end
+      end
+      else begin
+        if (col_counter < col_cnt) begin
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+0) % 2)*64)-8  +: 8] <= sb_out[63:56];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+0) % 2)*64)-16 +: 8] <= sb_out[55:48];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+0) % 2)*64)-24 +: 8] <= sb_out[47:40];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+0) % 2)*64)-32 +: 8] <= sb_out[39:32];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+1) % 2)*64)-40 +: 8] <= sb_out[31:24];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+1) % 2)*64)-48 +: 8] <= sb_out[23:16];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+1) % 2)*64)-56 +: 8] <= sb_out[15:8];
+          reg_sbpsmc_out[(BLOCK_SIZE-((col_counter+1) % 2)*64)-64 +: 8] <= sb_out[7:0];
+        end
+      end
+      if (col_counter == col_m1) begin
+        sbpsmc_rdy <= 1'b1;
+      end
+      else begin
+        sbpsmc_rdy <= 1'b0;
+      end
+    end
+  end
+end
+
+assign mc_in = sbpsmc_in[(col_m1-col_counter)*64 +:64];
+
+//Masked Inputs
+assign s1_mc_in = lfsr_in;
+assign s2_mc_in = mc_in ^ lfsr_in;
+
+//Inverse Mix Column and Byte Substitution - First-Order Masking
+kalyna_inv_mix_column_64b_fom mc64b_ins (.s1_mc_in(s1_mc_in), .s2_mc_in(s2_mc_in), .s1_mc_out(s1_mc_out), .s2_mc_out(s2_mc_out));
+kalyna_inv_substitute_byte_64b_fom sb64b_ins (.s1_sb_in(s1_mc_out), .s2_sb_in(s2_mc_out), .s1_sb_out(s1_sb_out), .s2_sb_out(s2_sb_out));
+
+//Output of the masked design
+assign sb_out = s1_sb_out ^ s2_sb_out;
+
+assign sbpsmc_out = reg_sbpsmc_out;
+
+endmodule
+
+//KALYNA ENCRYPTION BLOCK - SERIAL - ONE OPERATION IN ONE CLOCK CYCLE 
+module kalyna_enc_block_serial_oboc #(parameter BLOCK_SIZE = 128, parameter KEY_LENGTH = 128) (clk, rst, start, block_in, key_in, block_out, block_rdy);
+
+input clk, rst, start;
+input [BLOCK_SIZE-1:0] block_in;
+input [KEY_LENGTH-1:0] key_in;
+output reg [BLOCK_SIZE-1:0] block_out;
+output reg block_rdy;
+
+//Local parameters
+localparam bs_m8 = BLOCK_SIZE - 8;
+localparam bs_d16 = BLOCK_SIZE/16;
+localparam the_lr = (BLOCK_SIZE/4+24);
+localparam rnd_cnt = (BLOCK_SIZE == KEY_LENGTH && BLOCK_SIZE == 128) ? 5'd10 : (BLOCK_SIZE == KEY_LENGTH && BLOCK_SIZE == 256) ? 5'd14 : (BLOCK_SIZE == KEY_LENGTH && BLOCK_SIZE == 512) ? 5'd18 : (BLOCK_SIZE != KEY_LENGTH && BLOCK_SIZE == 128) ? 5'd14 : 5'd18;
+
+//Variables
+reg [4:0] rnd_num;
+reg [5:0] curr_state;
+reg [KEY_LENGTH-1:0] trans_in;
+reg reg_block_rdy, reg_enc_start;
+reg [BLOCK_SIZE-1:0] key_alfa, key_omega, add_one_in, add_two_in, int_key, shft_tmv, trans_key_in, tmv_key, round_out;
+wire [BLOCK_SIZE-1:0] int_key_in, the_tmv;
+wire [7:0] the_const = (BLOCK_SIZE+KEY_LENGTH)/64 + 1;
+wire [BLOCK_SIZE-1:0] m2add_out, m2p64add_out, sbpsmc_out;
+
+//Input to the intermediate key transformation
+assign int_key_in = {the_const, {bs_m8{1'b0}}};
+
+//Alfa and Omega Keys for the intermediate key transformation
+always @ (*) begin
+  if (BLOCK_SIZE == KEY_LENGTH) begin
+    key_alfa = key_in;
+    key_omega = key_in;
+  end
+  else begin
+    key_alfa = key_in[KEY_LENGTH-1:KEY_LENGTH/2];
+    key_omega = key_in[KEY_LENGTH/2-1:0];
+  end
+end
+
+//Generation of the TMV signal and its shifted version
+assign the_tmv= {bs_d16{16'h0100}};
+always @ (*) begin
+  case (rnd_num)
+    5'd0    : shft_tmv = the_tmv;
+    5'd2    : shft_tmv = {the_tmv[BLOCK_SIZE-2:0],  1'd0};
+    5'd4    : shft_tmv = {the_tmv[BLOCK_SIZE-3:0],  2'd0};
+    5'd6    : shft_tmv = {the_tmv[BLOCK_SIZE-4:0],  3'd0};
+    5'd8    : shft_tmv = {the_tmv[BLOCK_SIZE-5:0],  4'd0};
+    5'd10   : shft_tmv = {the_tmv[BLOCK_SIZE-6:0],  5'd0};
+    5'd12   : shft_tmv = {the_tmv[BLOCK_SIZE-7:0],  6'd0};
+    5'd14   : shft_tmv = {the_tmv[BLOCK_SIZE-8:0],  7'd0};
+    5'd16   : shft_tmv = {the_tmv[BLOCK_SIZE-9:0],  7'd0, 1'b1};
+    5'd18   : shft_tmv = {the_tmv[BLOCK_SIZE-10:0], 7'd0, 1'b1, 1'b0}; //Last two lines are due to the conflict between rotate and shift
+    default : shft_tmv = the_tmv;
+  endcase
+end
+
+//Generation of the input to the transformations
+always @ (*) begin
+  if (BLOCK_SIZE == KEY_LENGTH) begin
+    if (BLOCK_SIZE == 128) begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = {key_in[63:0], key_in[127:64]};
+        5'd4    : trans_in = key_in;
+        5'd6    : trans_in = {key_in[63:0], key_in[127:64]};
+        5'd8    : trans_in = key_in;
+        5'd10   : trans_in = {key_in[63:0], key_in[127:64]};
+        default : trans_in = key_in;
+      endcase
+    end
+    else if (BLOCK_SIZE == 256) begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd4    : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd6    : trans_in = {key_in[63:0],  key_in[255:64]};
+        5'd8    : trans_in = key_in;
+        5'd10   : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd12   : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd14   : trans_in = {key_in[63:0],  key_in[255:64]};
+        default : trans_in = key_in;
+      endcase
+    end
+    else begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = {key_in[447:0], key_in[511:448]};
+        5'd4    : trans_in = {key_in[383:0], key_in[511:384]};
+        5'd6    : trans_in = {key_in[319:0], key_in[511:320]};
+        5'd8    : trans_in = {key_in[255:0], key_in[511:256]};
+        5'd10   : trans_in = {key_in[191:0], key_in[511:192]};
+        5'd12   : trans_in = {key_in[127:0], key_in[511:128]};
+        5'd14   : trans_in = {key_in[63:0],  key_in[511:64]};
+        5'd16   : trans_in = key_in;
+        5'd18   : trans_in = {key_in[447:0], key_in[511:448]};
+        default : trans_in = key_in;
+      endcase
+    end
+  end
+  else begin
+    if (BLOCK_SIZE == 128) begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = key_in;
+        5'd4    : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd6    : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd8    : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd10   : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd12   : trans_in = {key_in[63:0],  key_in[255:64]};
+        5'd14   : trans_in = {key_in[63:0],  key_in[255:64]};
+        default : trans_in = key_in;
+      endcase
+    end
+    else begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = key_in;
+        5'd4    : trans_in = {key_in[447:0], key_in[511:448]};
+        5'd6    : trans_in = {key_in[447:0], key_in[511:448]};
+        5'd8    : trans_in = {key_in[383:0], key_in[511:384]};
+        5'd10   : trans_in = {key_in[383:0], key_in[511:384]};
+        5'd12   : trans_in = {key_in[319:0], key_in[511:320]};
+        5'd14   : trans_in = {key_in[319:0], key_in[511:320]};
+        5'd16   : trans_in = {key_in[255:0], key_in[511:256]};
+        5'd18   : trans_in = {key_in[255:0], key_in[511:256]};
+        default : trans_in = key_in;
+      endcase
+    end
+  end
+end
+always @ (*) begin
+  if (BLOCK_SIZE == KEY_LENGTH) begin
+    trans_key_in = trans_in;
+  end
+  else begin
+    case (rnd_num) 
+      5'd0    : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE];
+      5'd2    : trans_key_in = trans_in[BLOCK_SIZE-1:0];
+      5'd4    : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd6    : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      5'd8    : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd10   : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      5'd12   : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd14   : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      5'd16   : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd18   : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      default : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+    endcase
+  end
+end
+
+//The reg_enc_start signal indicates that the encryption process is started
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    reg_enc_start <= 1'b0;
+  end
+  else begin
+    if (block_rdy == 1'b1) begin
+      reg_enc_start <= 1'b0;
+    end
+    else begin
+      if (start == 1'b1) begin
+        reg_enc_start <= 1'b1;
+      end
+    end
+  end
+end
+
+//Block inputs in each state  
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    rnd_num <= 5'd0;
+    curr_state <= 6'd0;
+    reg_block_rdy <= 1'b0;
+    tmv_key <= {BLOCK_SIZE{1'b0}};
+    int_key <= {BLOCK_SIZE{1'b0}};
+    round_out <= {BLOCK_SIZE{1'b0}};
+    add_one_in <= {BLOCK_SIZE{1'b0}};
+    add_two_in <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (reg_enc_start == 1'b0) begin
+      rnd_num <= 5'd0;
+      curr_state <= 6'd0;
+      reg_block_rdy <= 1'b0;
+      tmv_key <= {BLOCK_SIZE{1'b0}};
+      int_key <= {BLOCK_SIZE{1'b0}};
+      round_out <= {BLOCK_SIZE{1'b0}};
+      add_one_in <= {BLOCK_SIZE{1'b0}};
+      add_two_in <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      case (curr_state)
+        //Intermediate key generattion starts here
+        6'd0 : begin
+          //ADD - INTKEY
+          add_one_in <= int_key_in;
+          add_two_in <= key_alfa;
+
+          curr_state <= 6'd1;
+        end
+        6'd1 : begin
+          //SPLT - INTKEY
+          add_one_in <= m2p64add_out;
+
+          curr_state <= 6'd2;
+        end
+        6'd2 : begin
+          //XOR - INTKEY
+          add_one_in <= key_omega;
+          add_two_in <= sbpsmc_out;
+
+          curr_state <= 6'd3;
+        end
+        6'd3 : begin
+          //SPLT - INTKEY
+          add_one_in <= m2add_out;
+          
+          curr_state <= 6'd4;
+        end
+        6'd4 : begin
+          //ADD - INTKEY
+          add_one_in <= key_alfa;
+          add_two_in <= sbpsmc_out;
+
+          curr_state <= 6'd5;
+        end
+        6'd5 : begin
+          //RND - KEY0
+          rnd_num <= 5'd0;
+
+          //SPLT - INTKEY
+          add_one_in <= m2p64add_out;
+          
+          curr_state <= 6'd6;
+        end
+        //Intermediate key generation ends and round 0 key generation starts here
+        6'd6 : begin
+          int_key <= sbpsmc_out;
+
+          //ADD - KEY0
+          add_one_in <= sbpsmc_out;
+          add_two_in <= shft_tmv;
+
+          curr_state <= 6'd7;
+        end
+        6'd7 : begin
+          tmv_key <= m2p64add_out;
+
+          //ADD - KEY0
+          add_one_in <= m2p64add_out;
+          add_two_in <= trans_key_in;
+
+          curr_state <= 6'd8;
+        end
+        6'd8 : begin
+          //SPLT - KEY0
+          add_one_in <= m2p64add_out;
+
+          curr_state <= 6'd9;
+        end
+        6'd9 : begin
+          //XOR - KEY0
+          add_one_in <= tmv_key;
+          add_two_in <= sbpsmc_out;
+
+          curr_state <= 6'd10;
+        end
+        6'd10 : begin
+          //SPLT - KEY0
+          add_one_in <= m2add_out;
+
+          curr_state <= 6'd11;
+        end
+        6'd11 : begin
+          //ADD - KEY0
+          add_one_in <= tmv_key;
+          add_two_in <= sbpsmc_out;
+
+          curr_state <= 6'd12;
+        end
+        //Round 0 key generation ends here and Round 0-1 operations start here
+        6'd12 : begin
+          tmv_key <= m2p64add_out;
+          //ADD - RND0
+          add_one_in <= m2p64add_out;
+          add_two_in <= block_in;
+
+          curr_state <= 6'd13;
+        end
+        6'd13 : begin
+          //SPLT - RND1
+          add_one_in <= m2p64add_out;
+
+          curr_state <= 6'd14;
+        end
+        6'd14 : begin
+          //RND - KEY2
+          rnd_num <= rnd_num + 5'd2;
+          //XOR - RND1
+          add_one_in <= sbpsmc_out;
+          add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+          curr_state <= 6'd15;
+        end
+        //Round 2 key generation starts here
+        6'd15 : begin
+          round_out <= m2add_out;
+          //ADD - KEY2
+          add_one_in <= int_key;
+          add_two_in <= shft_tmv;
+
+          curr_state <= 6'd16;
+        end
+        6'd16 : begin
+          tmv_key <= m2p64add_out;
+
+          //ADD - KEY2
+          add_one_in <= m2p64add_out;
+          add_two_in <= trans_key_in;
+
+          curr_state <= 6'd17;
+        end
+        6'd17 : begin
+          //SPLT - KEY2
+          add_one_in <= m2p64add_out;
+
+          curr_state <= 6'd18;
+        end
+        6'd18 : begin
+          //XOR - KEY2
+          add_one_in <= tmv_key;
+          add_two_in <= sbpsmc_out;
+
+          curr_state <= 6'd19;
+        end
+        6'd19 : begin
+          //SPLT - KEY2
+          add_one_in <= m2add_out;
+
+          curr_state <= 6'd20;
+        end
+        6'd20 : begin
+          //ADD - KEY2
+          add_one_in <= tmv_key;
+          add_two_in <= sbpsmc_out;
+
+          curr_state <= 6'd21;
+        end
+        //Round 2 key generation ends here and Round 2-3 operations start here
+        6'd21 : begin
+          tmv_key <= m2p64add_out;
+
+          //SPLT - RND2
+          add_one_in <= round_out;
+
+          curr_state <= 6'd22;
+        end
+        6'd22 : begin
+          //XOR - RND2
+          add_one_in <= sbpsmc_out;
+          add_two_in <= tmv_key;
+
+          curr_state <= 6'd23;
+        end
+        6'd23 : begin
+          //SPLT -RND3
+          add_one_in <= m2add_out;
+
+          curr_state <= 6'd24;
+        end
+        6'd24 : begin
+          //RND - KEY4
+          rnd_num <= rnd_num + 5'd2;
+
+          //XOR - RND3
+          add_one_in <= sbpsmc_out;
+          add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+          curr_state <= 6'd25;
+        end
+        //Round 2-3 operations end here and Round 4 key generation starts here
+        6'd25 : begin
+          round_out <= m2add_out;
+          //ADD - KEY4
+          add_one_in <= int_key;
+          add_two_in <= shft_tmv;
+
+          curr_state <= 6'd26;
+        end
+        6'd26 : begin
+          tmv_key <= m2p64add_out;
+
+          //ADD - KEY4
+          add_one_in <= m2p64add_out;
+          add_two_in <= trans_key_in;
+
+          curr_state <= 6'd27;
+        end
+        6'd27 : begin
+          //SPLT - KEY4
+          add_one_in <= m2p64add_out;
+
+          curr_state <= 6'd28;
+        end
+        6'd28 : begin
+          //XOR - KEY4
+          add_one_in <= tmv_key;
+          add_two_in <= sbpsmc_out;
+
+          curr_state <= 6'd29;
+        end
+        6'd29 : begin
+          //SPLT - KEY4
+          add_one_in <= m2add_out;
+
+          curr_state <= 6'd30;
+        end
+        6'd30 : begin
+          //ADD - KEY4
+          add_one_in <= tmv_key;
+          add_two_in <= sbpsmc_out;
+
+          curr_state <= 6'd31;
+        end
+        //Round 4 key generation ends here and Round 4-5 operations start here
+        6'd31 : begin
+          tmv_key <= m2p64add_out;
+
+          //SPLT - RND4
+          add_one_in <= round_out;
+
+          curr_state <= 6'd32;
+        end
+        6'd32 : begin
+          //XOR - RND4
+          add_one_in <= sbpsmc_out;
+          add_two_in <= tmv_key;
+
+          curr_state <= 6'd33;
+        end
+        6'd33 : begin
+          //SPLT -RND5
+          add_one_in <= m2add_out;
+
+          curr_state <= 6'd34;
+        end
+        6'd34 : begin
+          //RND - KEY6
+          rnd_num <= rnd_num + 5'd2;
+
+          //XOR - RND5
+          add_one_in <= sbpsmc_out;
+          add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+          curr_state <= 6'd35;
+        end
+        //Round 4-5 operations end here and Round 6 key generation starts here
+        6'd35 : begin
+          round_out <= m2add_out;
+          //ADD - KEY6
+          add_one_in <= int_key;
+          add_two_in <= shft_tmv;
+
+          curr_state <= 6'd36;
+        end
+        6'd36 : begin
+          tmv_key <= m2p64add_out;
+
+          //ADD - KEY6
+          add_one_in <= m2p64add_out;
+          add_two_in <= trans_key_in;
+
+          curr_state <= 6'd37;
+        end
+        6'd37 : begin
+          //SPLT - KEY6
+          add_one_in <= m2p64add_out;
+
+          curr_state <= 6'd38;
+        end
+        6'd38 : begin
+          //XOR - KEY6
+          add_one_in <= tmv_key;
+          add_two_in <= sbpsmc_out;
+
+          curr_state <= 6'd39;
+        end
+        6'd39 : begin
+          //SPLT - KEY6
+          add_one_in <= m2add_out;
+
+          curr_state <= 6'd40;
+        end
+        6'd40 : begin
+          //ADD - KEY6
+          add_one_in <= tmv_key;
+          add_two_in <= sbpsmc_out;
+
+          curr_state <= 6'd41;
+        end
+        //Round 6 key generation ends here and Round 6-7 operations start here
+        6'd41 : begin
+          tmv_key <= m2p64add_out;
+
+          //SPLT - RND6
+          add_one_in <= round_out;
+
+          curr_state <= 6'd42;
+        end
+        6'd42 : begin
+          //XOR - RND6
+          add_one_in <= sbpsmc_out;
+          add_two_in <= tmv_key;
+
+          curr_state <= 6'd43;
+        end
+        6'd43 : begin
+          //SPLT -RND7
+          add_one_in <= m2add_out;
+
+          curr_state <= 6'd44;
+        end
+        6'd44 : begin
+          //RND - KEY8
+          rnd_num <= rnd_num + 5'd2;
+
+          //XOR - RND7
+          add_one_in <= sbpsmc_out;
+          add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+          curr_state <= 6'd45;
+        end
+        //Round 6-7 operations end here and Round 8 key generation starts here
+        6'd45 : begin
+          round_out <= m2add_out;
+          //ADD - KEY8
+          add_one_in <= int_key;
+          add_two_in <= shft_tmv;
+
+          curr_state <= 6'd46;
+        end
+        6'd46 : begin
+          tmv_key <= m2p64add_out;
+
+          //ADD - KEY8
+          add_one_in <= m2p64add_out;
+          add_two_in <= trans_key_in;
+
+          curr_state <= 6'd47;
+        end
+        6'd47 : begin
+          //SPLT - KEY8
+          add_one_in <= m2p64add_out;
+
+          curr_state <= 6'd48;
+        end
+        6'd48 : begin
+          //XOR - KEY8
+          add_one_in <= tmv_key;
+          add_two_in <= sbpsmc_out;
+
+          curr_state <= 6'd49;
+        end
+        6'd49 : begin
+          //SPLT - KEY8
+          add_one_in <= m2add_out;
+
+          curr_state <= 6'd50;
+        end
+        6'd50 : begin
+          //ADD - KEY8
+          add_one_in <= tmv_key;
+          add_two_in <= sbpsmc_out;
+
+          curr_state <= 6'd51;
+        end
+        //Round 8 key generation ends here and Round 8-9 operations start here
+        6'd51 : begin
+          tmv_key <= m2p64add_out;
+
+          //SPLT - RND8
+          add_one_in <= round_out;
+
+          curr_state <= 6'd52;
+        end
+        6'd52 : begin
+          //XOR - RND8
+          add_one_in <= sbpsmc_out;
+          add_two_in <= tmv_key;
+
+          curr_state <= 6'd53;
+        end
+        6'd53 : begin
+          //SPLT -RND9
+          add_one_in <= m2add_out;
+
+          curr_state <= 6'd54;
+        end
+        6'd54 : begin
+          //RND - KEY10
+          rnd_num <= rnd_num + 5'd2;
+
+          //XOR - RND9
+          add_one_in <= sbpsmc_out;
+          add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+          curr_state <= 6'd55;
+        end
+        //Round 8-9 operations end here and Round 10 key generation starts here
+        6'd55 : begin
+          round_out <= m2add_out;
+          //ADD - KEY10
+          add_one_in <= int_key;
+          add_two_in <= shft_tmv;
+
+          if (rnd_cnt == 5'd10) begin
+            curr_state <= 6'd56;
+          end
+          else if (rnd_cnt == 5'd14) begin
+            if (rnd_num  == 5'd14) begin
+              curr_state <= 6'd56;
+            end
+            else begin
+              curr_state <= 6'd36;
+            end
+          end
+          else begin
+            if (rnd_num  == 5'd18) begin
+              curr_state <= 6'd56;
+            end
+            else begin
+              curr_state <= 6'd16;
+            end
+          end
+        end
+        6'd56 : begin
+          tmv_key <= m2p64add_out;
+
+          //ADD - KEY10
+          add_one_in <= m2p64add_out;
+          add_two_in <= trans_key_in;
+
+          curr_state <= 6'd57;
+        end
+        6'd57 : begin
+          //SPLT - KEY10
+          add_one_in <= m2p64add_out;
+
+          curr_state <= 6'd58;
+        end
+        6'd58 : begin
+          //XOR - KEY10
+          add_one_in <= tmv_key;
+          add_two_in <= sbpsmc_out;
+
+          curr_state <= 6'd59;
+        end
+        6'd59 : begin
+          //SPLT - KEY10
+          add_one_in <= m2add_out;
+
+          curr_state <= 6'd60;
+        end
+        6'd60 : begin
+          //ADD - KEY10
+          add_one_in <= tmv_key;
+          add_two_in <= sbpsmc_out;
+
+          curr_state <= 6'd61;
+        end
+        //Round 10 key generation ends here and Round 10 operation starts here
+        6'd61 : begin
+          tmv_key <= m2p64add_out;
+
+          //SPLT - RND10
+          add_one_in <= round_out;
+
+          curr_state <= 6'd62;
+        end
+        6'd62 : begin
+          //ADD - RND10
+          add_one_in <= sbpsmc_out;
+          add_two_in <= tmv_key;
+
+          curr_state <= 6'd63;
+        end
+        6'd63 : begin
+          round_out <= m2p64add_out;
+          reg_block_rdy <= 1'b1;
+
+          curr_state <= 6'd0;
+        end
+        default : begin
+          rnd_num <= 5'd0;
+          curr_state <= 6'd0;
+          reg_block_rdy <= 1'b0;
+          tmv_key <= {BLOCK_SIZE{1'b0}};
+          int_key <= {BLOCK_SIZE{1'b0}};
+          round_out <= {BLOCK_SIZE{1'b0}};
+          add_one_in <= {BLOCK_SIZE{1'b0}};
+          add_two_in <= {BLOCK_SIZE{1'b0}};
+        end
+      endcase
+    end
+  end
+end
+
+//Additions
+kalyna_mod2_add #(.BLOCK_SIZE(BLOCK_SIZE)) m2a_ins (.m2add_in_one(add_one_in), .m2add_in_two(add_two_in), .m2add_out(m2add_out));
+kalyna_mod2p64_add #(.BLOCK_SIZE(BLOCK_SIZE)) m2p64a_ins (.m2p64add_in_one(add_one_in), .m2p64add_in_two(add_two_in), .m2p64add_out(m2p64add_out));
+//Substitution Permutation Mix-Column
+kalyna_sbpsmc #(.BLOCK_SIZE(BLOCK_SIZE)) sbpsmc64b_ins (.sbpsmc_in(add_one_in), .sbpsmc_out(sbpsmc_out));
+
+//Block Outputs
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    block_rdy <= 1'b0;
+    block_out <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (reg_enc_start == 1'b0) begin
+      block_rdy <= 1'b0;
+      block_out <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      if (reg_block_rdy == 1'b1) begin
+        block_rdy <= 1'b1;
+        block_out <= round_out;
+      end
+    end
+  end
+end
+
+endmodule
+
+//KALYNA ENCRYPTION and DECRYPTION BLOCK - SERIAL - ONE OPERATION in ONE CLOCK CYCLE 
+module kalyna_encdec_block_serial_oboc #(parameter BLOCK_SIZE = 128, parameter KEY_LENGTH = 128) (clk, rst, start, mode, block_in, key_in, block_out, block_rdy);
+
+input clk, rst, start, mode;
+input [BLOCK_SIZE-1:0] block_in;
+input [KEY_LENGTH-1:0] key_in;
+output reg [BLOCK_SIZE-1:0] block_out;
+output reg block_rdy;
+
+//Local parameters
+localparam bs_m8 = BLOCK_SIZE - 8;
+localparam bs_d16 = BLOCK_SIZE/16;
+localparam the_lr = (BLOCK_SIZE/4+24);
+localparam rnd_cnt = (BLOCK_SIZE == KEY_LENGTH && BLOCK_SIZE == 128) ? 5'd10 : (BLOCK_SIZE == KEY_LENGTH && BLOCK_SIZE == 256) ? 5'd14 : (BLOCK_SIZE == KEY_LENGTH && BLOCK_SIZE == 512) ? 5'd18 : (BLOCK_SIZE != KEY_LENGTH && BLOCK_SIZE == 128) ? 5'd14 : 5'd18;
+
+//Variables
+reg [4:0] rnd_num;
+reg [5:0] curr_state;
+reg [KEY_LENGTH-1:0] trans_in;
+reg reg_block_rdy, reg_encdec_start;
+reg [BLOCK_SIZE-1:0] key_alfa, key_omega, add_one_in, add_two_in, int_key, shft_tmv, trans_key_in, tmv_key, round_out;
+wire [BLOCK_SIZE-1:0] int_key_in, the_tmv;
+wire [7:0] the_const = (BLOCK_SIZE+KEY_LENGTH)/64 + 1;
+wire [BLOCK_SIZE-1:0] m2add_out, m2p64add_out, sbpsmc_out, m2p64sub_out, inv_sbpsmc_out;
+
+//Input to the intermediate key transformation
+assign int_key_in = {the_const, {bs_m8{1'b0}}};
+
+//Alfa and Omega Keys for the intermediate key transformation
+always @ (*) begin
+  if (BLOCK_SIZE == KEY_LENGTH) begin
+    key_alfa = key_in;
+    key_omega = key_in;
+  end
+  else begin
+    key_alfa = key_in[KEY_LENGTH-1:KEY_LENGTH/2];
+    key_omega = key_in[KEY_LENGTH/2-1:0];
+  end
+end
+
+//Generation of the TMV signal and its shifted version
+assign the_tmv= {bs_d16{16'h0100}};
+always @ (*) begin
+  case (rnd_num)
+    5'd0    : shft_tmv = the_tmv;
+    5'd2    : shft_tmv = {the_tmv[BLOCK_SIZE-2:0],  1'd0};
+    5'd4    : shft_tmv = {the_tmv[BLOCK_SIZE-3:0],  2'd0};
+    5'd6    : shft_tmv = {the_tmv[BLOCK_SIZE-4:0],  3'd0};
+    5'd8    : shft_tmv = {the_tmv[BLOCK_SIZE-5:0],  4'd0};
+    5'd10   : shft_tmv = {the_tmv[BLOCK_SIZE-6:0],  5'd0};
+    5'd12   : shft_tmv = {the_tmv[BLOCK_SIZE-7:0],  6'd0};
+    5'd14   : shft_tmv = {the_tmv[BLOCK_SIZE-8:0],  7'd0};
+    5'd16   : shft_tmv = {the_tmv[BLOCK_SIZE-9:0],  7'd0, 1'b1};
+    5'd18   : shft_tmv = {the_tmv[BLOCK_SIZE-10:0], 7'd0, 1'b1, 1'b0}; //Last two lines are due to the conflict between rotate and shift
+    default : shft_tmv = the_tmv;
+  endcase
+end
+
+//Generation of the input to the transformations
+always @ (*) begin
+  if (BLOCK_SIZE == KEY_LENGTH) begin
+    if (BLOCK_SIZE == 128) begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = {key_in[63:0], key_in[127:64]};
+        5'd4    : trans_in = key_in;
+        5'd6    : trans_in = {key_in[63:0], key_in[127:64]};
+        5'd8    : trans_in = key_in;
+        5'd10   : trans_in = {key_in[63:0], key_in[127:64]};
+        default : trans_in = key_in;
+      endcase
+    end
+    else if (BLOCK_SIZE == 256) begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd4    : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd6    : trans_in = {key_in[63:0],  key_in[255:64]};
+        5'd8    : trans_in = key_in;
+        5'd10   : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd12   : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd14   : trans_in = {key_in[63:0],  key_in[255:64]};
+        default : trans_in = key_in;
+      endcase
+    end
+    else begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = {key_in[447:0], key_in[511:448]};
+        5'd4    : trans_in = {key_in[383:0], key_in[511:384]};
+        5'd6    : trans_in = {key_in[319:0], key_in[511:320]};
+        5'd8    : trans_in = {key_in[255:0], key_in[511:256]};
+        5'd10   : trans_in = {key_in[191:0], key_in[511:192]};
+        5'd12   : trans_in = {key_in[127:0], key_in[511:128]};
+        5'd14   : trans_in = {key_in[63:0],  key_in[511:64]};
+        5'd16   : trans_in = key_in;
+        5'd18   : trans_in = {key_in[447:0], key_in[511:448]};
+        default : trans_in = key_in;
+      endcase
+    end
+  end
+  else begin
+    if (BLOCK_SIZE == 128) begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = key_in;
+        5'd4    : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd6    : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd8    : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd10   : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd12   : trans_in = {key_in[63:0],  key_in[255:64]};
+        5'd14   : trans_in = {key_in[63:0],  key_in[255:64]};
+        default : trans_in = key_in;
+      endcase
+    end
+    else begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = key_in;
+        5'd4    : trans_in = {key_in[447:0], key_in[511:448]};
+        5'd6    : trans_in = {key_in[447:0], key_in[511:448]};
+        5'd8    : trans_in = {key_in[383:0], key_in[511:384]};
+        5'd10   : trans_in = {key_in[383:0], key_in[511:384]};
+        5'd12   : trans_in = {key_in[319:0], key_in[511:320]};
+        5'd14   : trans_in = {key_in[319:0], key_in[511:320]};
+        5'd16   : trans_in = {key_in[255:0], key_in[511:256]};
+        5'd18   : trans_in = {key_in[255:0], key_in[511:256]};
+        default : trans_in = key_in;
+      endcase
+    end
+  end
+end
+always @ (*) begin
+  if (BLOCK_SIZE == KEY_LENGTH) begin
+    trans_key_in = trans_in;
+  end
+  else begin
+    case (rnd_num) 
+      5'd0    : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE];
+      5'd2    : trans_key_in = trans_in[BLOCK_SIZE-1:0];
+      5'd4    : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd6    : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      5'd8    : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd10   : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      5'd12   : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd14   : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      5'd16   : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd18   : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      default : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+    endcase
+  end
+end
+
+//The reg_encdec_start signal indicates that the encryption process is started
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    reg_encdec_start <= 1'b0;
+  end
+  else begin
+    if (block_rdy == 1'b1) begin
+      reg_encdec_start <= 1'b0;
+    end
+    else begin
+      if (start == 1'b1) begin
+        reg_encdec_start <= 1'b1;
+      end
+    end
+  end
+end
+
+//Block inputs in each state  
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    rnd_num <= 5'd0;
+    curr_state <= 6'd0;
+    reg_block_rdy <= 1'b0;
+    tmv_key <= {BLOCK_SIZE{1'b0}};
+    int_key <= {BLOCK_SIZE{1'b0}};
+    round_out <= {BLOCK_SIZE{1'b0}};
+    add_one_in <= {BLOCK_SIZE{1'b0}};
+    add_two_in <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (reg_encdec_start == 1'b0) begin
+      rnd_num <= 5'd0;
+      curr_state <= 6'd0;
+      reg_block_rdy <= 1'b0;
+      tmv_key <= {BLOCK_SIZE{1'b0}};
+      int_key <= {BLOCK_SIZE{1'b0}};
+      round_out <= {BLOCK_SIZE{1'b0}};
+      add_one_in <= {BLOCK_SIZE{1'b0}};
+      add_two_in <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      //Encryption
+      if (mode == 1'b0) begin
+        case (curr_state)
+          //Intermediate key generattion starts here
+          6'd0 : begin
+            //ADD - INTKEY
+            add_one_in <= int_key_in;
+            add_two_in <= key_alfa;
+
+            curr_state <= 6'd1;
+          end
+          6'd1 : begin
+            //SPLT - INTKEY
+            add_one_in <= m2p64add_out;
+
+            curr_state <= 6'd2;
+          end
+          6'd2 : begin
+            //XOR - INTKEY
+            add_one_in <= key_omega;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd3;
+          end
+          6'd3 : begin
+            //SPLT - INTKEY
+            add_one_in <= m2add_out;
+            
+            curr_state <= 6'd4;
+          end
+          6'd4 : begin
+            //ADD - INTKEY
+            add_one_in <= key_alfa;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd5;
+          end
+          6'd5 : begin
+            //RND - KEY0
+            rnd_num <= 5'd0;
+
+            //SPLT - INTKEY
+            add_one_in <= m2p64add_out;
+            
+            curr_state <= 6'd6;
+          end
+          //Intermediate key generation ends and round 0 key generation starts here
+          6'd6 : begin
+            int_key <= sbpsmc_out;
+
+            //ADD - KEY0
+            add_one_in <= sbpsmc_out;
+            add_two_in <= shft_tmv;
+
+            curr_state <= 6'd7;
+          end
+          6'd7 : begin
+            tmv_key <= m2p64add_out;
+
+            //ADD - KEY0
+            add_one_in <= m2p64add_out;
+            add_two_in <= trans_key_in;
+
+            curr_state <= 6'd8;
+          end
+          6'd8 : begin
+            //SPLT - KEY0
+            add_one_in <= m2p64add_out;
+
+            curr_state <= 6'd9;
+          end
+          6'd9 : begin
+            //XOR - KEY0
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd10;
+          end
+          6'd10 : begin
+            //SPLT - KEY0
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd11;
+          end
+          6'd11 : begin
+            //ADD - KEY0
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd12;
+          end
+          //Round 0 key generation ends here and Round 0-1 operations start here
+          6'd12 : begin
+            tmv_key <= m2p64add_out;
+            //ADD - RND0
+            add_one_in <= m2p64add_out;
+            add_two_in <= block_in;
+
+            curr_state <= 6'd13;
+          end
+          6'd13 : begin
+            //SPLT - RND1
+            add_one_in <= m2p64add_out;
+
+            curr_state <= 6'd14;
+          end
+          6'd14 : begin
+            //RND - KEY2
+            rnd_num <= rnd_num + 5'd2;
+            //XOR - RND1
+            add_one_in <= sbpsmc_out;
+            add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+            curr_state <= 6'd15;
+          end
+          //Round 2 key generation starts here
+          6'd15 : begin
+            round_out <= m2add_out;
+            //ADD - KEY2
+            add_one_in <= int_key;
+            add_two_in <= shft_tmv;
+
+            curr_state <= 6'd16;
+          end
+          6'd16 : begin
+            tmv_key <= m2p64add_out;
+
+            //ADD - KEY2
+            add_one_in <= m2p64add_out;
+            add_two_in <= trans_key_in;
+
+            curr_state <= 6'd17;
+          end
+          6'd17 : begin
+            //SPLT - KEY2
+            add_one_in <= m2p64add_out;
+
+            curr_state <= 6'd18;
+          end
+          6'd18 : begin
+            //XOR - KEY2
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd19;
+          end
+          6'd19 : begin
+            //SPLT - KEY2
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd20;
+          end
+          6'd20 : begin
+            //ADD - KEY2
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd21;
+          end
+          //Round 2 key generation ends here and Round 2-3 operations start here
+          6'd21 : begin
+            tmv_key <= m2p64add_out;
+
+            //SPLT - RND2
+            add_one_in <= round_out;
+
+            curr_state <= 6'd22;
+          end
+          6'd22 : begin
+            //XOR - RND2
+            add_one_in <= sbpsmc_out;
+            add_two_in <= tmv_key;
+
+            curr_state <= 6'd23;
+          end
+          6'd23 : begin
+            //SPLT -RND3
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd24;
+          end
+          6'd24 : begin
+            //RND - KEY4
+            rnd_num <= rnd_num + 5'd2;
+
+            //XOR - RND3
+            add_one_in <= sbpsmc_out;
+            add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+            curr_state <= 6'd25;
+          end
+          //Round 2-3 operations end here and Round 4 key generation starts here
+          6'd25 : begin
+            round_out <= m2add_out;
+            //ADD - KEY4
+            add_one_in <= int_key;
+            add_two_in <= shft_tmv;
+
+            curr_state <= 6'd26;
+          end
+          6'd26 : begin
+            tmv_key <= m2p64add_out;
+
+            //ADD - KEY4
+            add_one_in <= m2p64add_out;
+            add_two_in <= trans_key_in;
+
+            curr_state <= 6'd27;
+          end
+          6'd27 : begin
+            //SPLT - KEY4
+            add_one_in <= m2p64add_out;
+
+            curr_state <= 6'd28;
+          end
+          6'd28 : begin
+            //XOR - KEY4
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd29;
+          end
+          6'd29 : begin
+            //SPLT - KEY4
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd30;
+          end
+          6'd30 : begin
+            //ADD - KEY4
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd31;
+          end
+          //Round 4 key generation ends here and Round 4-5 operations start here
+          6'd31 : begin
+            tmv_key <= m2p64add_out;
+
+            //SPLT - RND4
+            add_one_in <= round_out;
+
+            curr_state <= 6'd32;
+          end
+          6'd32 : begin
+            //XOR - RND4
+            add_one_in <= sbpsmc_out;
+            add_two_in <= tmv_key;
+
+            curr_state <= 6'd33;
+          end
+          6'd33 : begin
+            //SPLT -RND5
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd34;
+          end
+          6'd34 : begin
+            //RND - KEY6
+            rnd_num <= rnd_num + 5'd2;
+
+            //XOR - RND5
+            add_one_in <= sbpsmc_out;
+            add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+            curr_state <= 6'd35;
+          end
+          //Round 4-5 operations end here and Round 6 key generation starts here
+          6'd35 : begin
+            round_out <= m2add_out;
+            //ADD - KEY6
+            add_one_in <= int_key;
+            add_two_in <= shft_tmv;
+
+            curr_state <= 6'd36;
+          end
+          6'd36 : begin
+            tmv_key <= m2p64add_out;
+
+            //ADD - KEY6
+            add_one_in <= m2p64add_out;
+            add_two_in <= trans_key_in;
+
+            curr_state <= 6'd37;
+          end
+          6'd37 : begin
+            //SPLT - KEY6
+            add_one_in <= m2p64add_out;
+
+            curr_state <= 6'd38;
+          end
+          6'd38 : begin
+            //XOR - KEY6
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd39;
+          end
+          6'd39 : begin
+            //SPLT - KEY6
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd40;
+          end
+          6'd40 : begin
+            //ADD - KEY6
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd41;
+          end
+          //Round 6 key generation ends here and Round 6-7 operations start here
+          6'd41 : begin
+            tmv_key <= m2p64add_out;
+
+            //SPLT - RND6
+            add_one_in <= round_out;
+
+            curr_state <= 6'd42;
+          end
+          6'd42 : begin
+            //XOR - RND6
+            add_one_in <= sbpsmc_out;
+            add_two_in <= tmv_key;
+
+            curr_state <= 6'd43;
+          end
+          6'd43 : begin
+            //SPLT -RND7
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd44;
+          end
+          6'd44 : begin
+            //RND - KEY8
+            rnd_num <= rnd_num + 5'd2;
+
+            //XOR - RND7
+            add_one_in <= sbpsmc_out;
+            add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+            curr_state <= 6'd45;
+          end
+          //Round 6-7 operations end here and Round 8 key generation starts here
+          6'd45 : begin
+            round_out <= m2add_out;
+            //ADD - KEY8
+            add_one_in <= int_key;
+            add_two_in <= shft_tmv;
+
+            curr_state <= 6'd46;
+          end
+          6'd46 : begin
+            tmv_key <= m2p64add_out;
+
+            //ADD - KEY8
+            add_one_in <= m2p64add_out;
+            add_two_in <= trans_key_in;
+
+            curr_state <= 6'd47;
+          end
+          6'd47 : begin
+            //SPLT - KEY8
+            add_one_in <= m2p64add_out;
+
+            curr_state <= 6'd48;
+          end
+          6'd48 : begin
+            //XOR - KEY8
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd49;
+          end
+          6'd49 : begin
+            //SPLT - KEY8
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd50;
+          end
+          6'd50 : begin
+            //ADD - KEY8
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd51;
+          end
+          //Round 8 key generation ends here and Round 8-9 operations start here
+          6'd51 : begin
+            tmv_key <= m2p64add_out;
+
+            //SPLT - RND8
+            add_one_in <= round_out;
+
+            curr_state <= 6'd52;
+          end
+          6'd52 : begin
+            //XOR - RND8
+            add_one_in <= sbpsmc_out;
+            add_two_in <= tmv_key;
+
+            curr_state <= 6'd53;
+          end
+          6'd53 : begin
+            //SPLT -RND9
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd54;
+          end
+          6'd54 : begin
+            //RND - KEY10
+            rnd_num <= rnd_num + 5'd2;
+
+            //XOR - RND9
+            add_one_in <= sbpsmc_out;
+            add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+            curr_state <= 6'd55;
+          end
+          //Round 8-9 operations end here and Round 10 key generation starts here
+          6'd55 : begin
+            round_out <= m2add_out;
+            //ADD - KEY10
+            add_one_in <= int_key;
+            add_two_in <= shft_tmv;
+
+            if (rnd_cnt == 5'd10) begin
+              curr_state <= 6'd56;
+            end
+            else if (rnd_cnt == 5'd14) begin
+              if (rnd_num  == 5'd14) begin
+                curr_state <= 6'd56;
+              end
+              else begin
+                curr_state <= 6'd36;
+              end
+            end
+            else begin
+              if (rnd_num  == 5'd18) begin
+                curr_state <= 6'd56;
+              end
+              else begin
+                curr_state <= 6'd16;
+              end
+            end
+          end
+          6'd56 : begin
+            tmv_key <= m2p64add_out;
+
+            //ADD - KEY10
+            add_one_in <= m2p64add_out;
+            add_two_in <= trans_key_in;
+
+            curr_state <= 6'd57;
+          end
+          6'd57 : begin
+            //SPLT - KEY10
+            add_one_in <= m2p64add_out;
+
+            curr_state <= 6'd58;
+          end
+          6'd58 : begin
+            //XOR - KEY10
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd59;
+          end
+          6'd59 : begin
+            //SPLT - KEY10
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd60;
+          end
+          6'd60 : begin
+            //ADD - KEY10
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd61;
+          end
+          //Round 10 key generation ends here and Round 10 operation starts here
+          6'd61 : begin
+            tmv_key <= m2p64add_out;
+
+            //SPLT - RND10
+            add_one_in <= round_out;
+
+            curr_state <= 6'd62;
+          end
+          6'd62 : begin
+            //ADD - RND10
+            add_one_in <= sbpsmc_out;
+            add_two_in <= tmv_key;
+
+            curr_state <= 6'd63;
+          end
+          6'd63 : begin
+            round_out <= m2p64add_out;
+            reg_block_rdy <= 1'b1;
+
+            curr_state <= 6'd0;
+          end
+          default : begin
+            rnd_num <= 5'd0;
+            curr_state <= 6'd0;
+            reg_block_rdy <= 1'b0;
+            tmv_key <= {BLOCK_SIZE{1'b0}};
+            int_key <= {BLOCK_SIZE{1'b0}};
+            round_out <= {BLOCK_SIZE{1'b0}};
+            add_one_in <= {BLOCK_SIZE{1'b0}};
+            add_two_in <= {BLOCK_SIZE{1'b0}};
+          end
+        endcase
+      end
+      //Decryption
+      else begin
+        case (curr_state)
+          //Intermediate key generattion starts here
+          6'd0 : begin
+            //ADD - INTKEY
+            add_one_in <= int_key_in;
+            add_two_in <= key_alfa;
+
+            curr_state <= 6'd1;
+          end
+          6'd1 : begin
+            //SPLT - INTKEY
+            add_one_in <= m2p64add_out;
+
+            curr_state <= 6'd2;
+          end
+          6'd2 : begin
+            //XOR - INTKEY
+            add_one_in <= key_omega;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd3;
+          end
+          6'd3 : begin
+            //SPLT - INTKEY
+            add_one_in <= m2add_out;
+            
+            curr_state <= 6'd4;
+          end
+          6'd4 : begin
+            //ADD - INTKEY
+            add_one_in <= key_alfa;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd5;
+          end
+          6'd5 : begin
+            //RND - KEY10
+            rnd_num <= rnd_cnt;
+
+            //SPLT - INTKEY
+            add_one_in <= m2p64add_out;
+            
+            curr_state <= 6'd6;
+          end
+          //Intermediate key generation ends and round 10 key generation starts here
+          6'd6 : begin
+            int_key <= sbpsmc_out;
+
+            //ADD - KEY10
+            add_one_in <= sbpsmc_out;
+            add_two_in <= shft_tmv;
+
+            curr_state <= 6'd7;
+          end
+          6'd7 : begin
+            tmv_key <= m2p64add_out;
+
+            //ADD - KEY10
+            add_one_in <= m2p64add_out;
+            add_two_in <= trans_key_in;
+
+            curr_state <= 6'd8;
+          end
+          6'd8 : begin
+            //SPLT - KEY10
+            add_one_in <= m2p64add_out;
+
+            curr_state <= 6'd9;
+          end
+          6'd9 : begin
+            //XOR - KEY10
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd10;
+          end
+          6'd10 : begin
+            //SPLT - KEY10
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd11;
+          end
+          6'd11 : begin
+            //ADD - KEY10
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd12;
+          end
+          //Round 10 key generation ends here and Round 10 operations start here
+          6'd12 : begin
+            tmv_key <= m2p64add_out;
+            //SUB - RND10
+            add_one_in <= block_in;
+            add_two_in <= m2p64add_out;
+
+            curr_state <= 6'd13;
+          end
+          6'd13 : begin
+            //RND - KEY8
+            rnd_num <= rnd_num - 5'd2;
+            //INV SPLT - RND10
+            add_one_in <= m2p64sub_out;
+
+            curr_state <= 6'd14;
+          end
+          //Round 10 operations end here and Round 8 key operations start here
+          6'd14 : begin
+            round_out <= inv_sbpsmc_out;
+            //ADD - KEY8
+            add_one_in <= int_key;
+            add_two_in <= shft_tmv;
+
+            curr_state <= 6'd15;
+          end
+          6'd15 : begin
+            tmv_key <= m2p64add_out;
+
+            //ADD - KEY8
+            add_one_in <= m2p64add_out;
+            add_two_in <= trans_key_in;
+
+            curr_state <= 6'd16;
+          end
+          6'd16 : begin
+            //SPLT - KEY8
+            add_one_in <= m2p64add_out;
+
+            curr_state <= 6'd17;
+          end
+          6'd17 : begin
+            //XOR - KEY8
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd18;
+          end
+          6'd18 : begin
+            //SPLT - KEY8
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd19;
+          end
+          6'd19 : begin
+            //ADD - KEY8
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd20;
+          end
+          //Round 8 key generation ends here and Round 9-8 operations start here
+          6'd20 : begin
+            tmv_key <= m2p64add_out;
+            //XOR - RND9
+            add_one_in <= round_out;
+            add_two_in <= {m2p64add_out[BLOCK_SIZE-1-the_lr:0], m2p64add_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+            curr_state <= 6'd21;
+          end
+          6'd21 : begin
+            //INV SPLT - RND9
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd22;
+          end
+          6'd22 : begin
+            //XOR - RND8
+            add_one_in <= inv_sbpsmc_out;
+            add_two_in <= tmv_key;
+
+            curr_state <= 6'd23;
+          end
+          6'd23 : begin
+            //RND - KEY6
+            rnd_num <= rnd_num - 5'd2;
+            //INV SPLT - RND8
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd24;
+          end
+          //Round 9-8 operations end here and Round 6 key operations start here
+          6'd24 : begin
+            round_out <= inv_sbpsmc_out;
+            //ADD - KEY6
+            add_one_in <= int_key;
+            add_two_in <= shft_tmv;
+
+            curr_state <= 6'd25;
+          end
+          6'd25 : begin
+            tmv_key <= m2p64add_out;
+
+            //ADD - KEY6
+            add_one_in <= m2p64add_out;
+            add_two_in <= trans_key_in;
+
+            curr_state <= 6'd26;
+          end
+          6'd26 : begin
+            //SPLT - KEY6
+            add_one_in <= m2p64add_out;
+
+            curr_state <= 6'd27;
+          end
+          6'd27 : begin
+            //XOR - KEY6
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd28;
+          end
+          6'd28 : begin
+            //SPLT - KEY6
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd29;
+          end
+          6'd29 : begin
+            //ADD - KEY6
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd30;
+          end
+          //Round 6 key generation ends here and Round 7-6 operations start here
+          6'd30 : begin
+            tmv_key <= m2p64add_out;
+            //XOR - RND7
+            add_one_in <= round_out;
+            add_two_in <= {m2p64add_out[BLOCK_SIZE-1-the_lr:0], m2p64add_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+            curr_state <= 6'd31;
+          end
+          6'd31 : begin
+            //INV SPLT - RND7
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd32;
+          end
+          6'd32 : begin
+            //XOR - RND6
+            add_one_in <= inv_sbpsmc_out;
+            add_two_in <= tmv_key;
+
+            curr_state <= 6'd33;
+          end
+          6'd33 : begin
+            //RND - KEY4
+            rnd_num <= rnd_num - 5'd2;
+            //INV SPLT - RND6
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd34;
+          end
+          //Round 7-6 operations end here and Round 4 key operations start here
+          6'd34 : begin
+            round_out <= inv_sbpsmc_out;
+            //ADD - KEY4
+            add_one_in <= int_key;
+            add_two_in <= shft_tmv;
+
+            curr_state <= 6'd35;
+          end
+          6'd35 : begin
+            tmv_key <= m2p64add_out;
+
+            //ADD - KEY4
+            add_one_in <= m2p64add_out;
+            add_two_in <= trans_key_in;
+
+            curr_state <= 6'd36;
+          end
+          6'd36 : begin
+            //SPLT - KEY4
+            add_one_in <= m2p64add_out;
+
+            curr_state <= 6'd37;
+          end
+          6'd37 : begin
+            //XOR - KEY4
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd38;
+          end
+          6'd38 : begin
+            //SPLT - KEY4
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd39;
+          end
+          6'd39 : begin
+            //ADD - KEY4
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd40;
+          end
+          //Round 4 key generation ends here and Round 5-4 operations start here
+          6'd40 : begin
+            tmv_key <= m2p64add_out;
+            //XOR - RND5
+            add_one_in <= round_out;
+            add_two_in <= {m2p64add_out[BLOCK_SIZE-1-the_lr:0], m2p64add_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+            curr_state <= 6'd41;
+          end
+          6'd41 : begin
+            //INV SPLT - RND5
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd42;
+          end
+          6'd42 : begin
+            //XOR - RND4
+            add_one_in <= inv_sbpsmc_out;
+            add_two_in <= tmv_key;
+
+            curr_state <= 6'd43;
+          end
+          6'd43 : begin
+            //RND - KEY2
+            rnd_num <= rnd_num - 5'd2;
+            //INV SPLT - RND4
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd44;
+          end
+          //Round 5-4 operations end here and Round 2 key operations start here
+          6'd44 : begin
+            round_out <= inv_sbpsmc_out;
+            //ADD - KEY2
+            add_one_in <= int_key;
+            add_two_in <= shft_tmv;
+
+            curr_state <= 6'd45;
+          end
+          6'd45 : begin
+            tmv_key <= m2p64add_out;
+
+            //ADD - KEY2
+            add_one_in <= m2p64add_out;
+            add_two_in <= trans_key_in;
+
+            curr_state <= 6'd46;
+          end
+          6'd46 : begin
+            //SPLT - KEY2
+            add_one_in <= m2p64add_out;
+
+            curr_state <= 6'd47;
+          end
+          6'd47 : begin
+            //XOR - KEY2
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd48;
+          end
+          6'd48 : begin
+            //SPLT - KEY2
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd49;
+          end
+          6'd49 : begin
+            //ADD - KEY2
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd50;
+          end
+          //Round 2 key generation ends here and Round 3-2 operations start here
+          6'd50 : begin
+            tmv_key <= m2p64add_out;
+            //XOR - RND3
+            add_one_in <= round_out;
+            add_two_in <= {m2p64add_out[BLOCK_SIZE-1-the_lr:0], m2p64add_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+            curr_state <= 6'd51;
+          end
+          6'd51 : begin
+            //INV SPLT - RND3
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd52;
+          end
+          6'd52 : begin
+            //XOR - RND2
+            add_one_in <= inv_sbpsmc_out;
+            add_two_in <= tmv_key;
+
+            curr_state <= 6'd53;
+          end
+          6'd53 : begin
+            //RND - KEY0
+            rnd_num <= rnd_num - 5'd2;
+            //INV SPLT - RND2
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd54;
+          end
+          //Round 3-2 operations end here and Round 0 key operations start here
+          6'd54 : begin
+            round_out <= inv_sbpsmc_out;
+            //ADD - KEY0
+            add_one_in <= int_key;
+            add_two_in <= shft_tmv;
+
+            if (rnd_cnt == 5'd10) begin
+              curr_state <= 6'd55;
+            end
+            else if (rnd_cnt == 5'd14) begin
+              if (rnd_num == 5'd0) begin
+                curr_state <= 6'd55;
+              end
+              else begin
+                curr_state <= 6'd35;
+              end
+            end
+            else begin
+              if (rnd_num == 5'd0) begin
+                curr_state <= 6'd55;
+              end
+              else begin
+                curr_state <= 6'd15;
+              end
+            end
+          end
+          6'd55 : begin
+            tmv_key <= m2p64add_out;
+
+            //ADD - KEY0
+            add_one_in <= m2p64add_out;
+            add_two_in <= trans_key_in;
+
+            curr_state <= 6'd56;
+          end
+          6'd56 : begin
+            //SPLT - KEY0
+            add_one_in <= m2p64add_out;
+
+            curr_state <= 6'd57;
+          end
+          6'd57 : begin
+            //XOR - KEY0
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd58;
+          end
+          6'd58 : begin
+            //SPLT - KEY0
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd59;
+          end
+          6'd59 : begin
+            //ADD - KEY0
+            add_one_in <= tmv_key;
+            add_two_in <= sbpsmc_out;
+
+            curr_state <= 6'd60;
+          end
+          //Round 0 key generation ends here and Round 1-0 operations start here
+          6'd60 : begin
+            tmv_key <= m2p64add_out;
+            //XOR - RND1
+            add_one_in <= round_out;
+            add_two_in <= {m2p64add_out[BLOCK_SIZE-1-the_lr:0], m2p64add_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+            curr_state <= 6'd61;
+          end
+          6'd61 : begin
+            //INV SPLT - RND1
+            add_one_in <= m2add_out;
+
+            curr_state <= 6'd62;
+          end
+          6'd62 : begin
+            //SUB - RND0
+            add_one_in <= inv_sbpsmc_out;
+            add_two_in <= tmv_key;
+
+            curr_state <= 6'd63;
+          end
+          6'd63 : begin
+            round_out <= m2p64sub_out;
+            reg_block_rdy <= 1'b1;
+
+            curr_state <= 6'd0;
+          end
+          default : begin
+            rnd_num <= 5'd0;
+            curr_state <= 6'd0;
+            reg_block_rdy <= 1'b0;
+            tmv_key <= {BLOCK_SIZE{1'b0}};
+            int_key <= {BLOCK_SIZE{1'b0}};
+            round_out <= {BLOCK_SIZE{1'b0}};
+            add_one_in <= {BLOCK_SIZE{1'b0}};
+            add_two_in <= {BLOCK_SIZE{1'b0}};
+          end
+        endcase
+      end
+    end
+  end
+end
+
+//Additions
+kalyna_mod2_add #(.BLOCK_SIZE(BLOCK_SIZE)) m2a_ins (.m2add_in_one(add_one_in), .m2add_in_two(add_two_in), .m2add_out(m2add_out));
+kalyna_mod2p64_add #(.BLOCK_SIZE(BLOCK_SIZE)) m2p64a_ins (.m2p64add_in_one(add_one_in), .m2p64add_in_two(add_two_in), .m2p64add_out(m2p64add_out));
+//Substitution Permutation Mix-Column
+kalyna_sbpsmc #(.BLOCK_SIZE(BLOCK_SIZE)) sbpsmc64b_ins (.sbpsmc_in(add_one_in), .sbpsmc_out(sbpsmc_out));
+//Inverse Addition
+kalyna_mod2p64_sub #(.BLOCK_SIZE(BLOCK_SIZE)) inv_m2p64a_ins (.m2p64sub_in_one(add_one_in), .m2p64sub_in_two(add_two_in), .m2p64sub_out(m2p64sub_out));
+//Inverse Substitution Permutation Mix-Column
+kalyna_inv_sbpsmc #(.BLOCK_SIZE(BLOCK_SIZE)) inv_sbpsmc64b_ins (.sbpsmc_in(add_one_in), .sbpsmc_out(inv_sbpsmc_out));
+
+//Block Outputs
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    block_rdy <= 1'b0;
+    block_out <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (reg_encdec_start == 1'b0) begin
+      block_rdy <= 1'b0;
+      block_out <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      if (reg_block_rdy == 1'b1) begin
+        block_rdy <= 1'b1;
+        block_out <= round_out;
+      end
+    end
+  end
+end
+
+endmodule
+
+//KALYNA ENCRYPTION and DECRYPTION BLOCK - SERIAL - ONE 64-bit OPERATION in ONE CLOCK CYCLE 
+module kalyna_encdec_block_serial64b_oboc #(parameter BLOCK_SIZE = 128, parameter KEY_LENGTH = 128) (clk, rst, start, mode, block_in, key_in, block_out, block_rdy);
+
+input clk, rst, start, mode;
+input [BLOCK_SIZE-1:0] block_in;
+input [KEY_LENGTH-1:0] key_in;
+output reg [BLOCK_SIZE-1:0] block_out;
+output reg block_rdy;
+
+//Local parameters
+localparam bs_m8 = BLOCK_SIZE - 8;
+localparam bs_d16 = BLOCK_SIZE/16;
+localparam the_lr = (BLOCK_SIZE/4+24);
+localparam rnd_cnt = (BLOCK_SIZE == KEY_LENGTH && BLOCK_SIZE == 128) ? 5'd10 : (BLOCK_SIZE == KEY_LENGTH && BLOCK_SIZE == 256) ? 5'd14 : (BLOCK_SIZE == KEY_LENGTH && BLOCK_SIZE == 512) ? 5'd18 : (BLOCK_SIZE != KEY_LENGTH && BLOCK_SIZE == 128) ? 5'd14 : 5'd18;
+
+//Variables
+reg [4:0] rnd_num;
+reg [5:0] curr_state;
+reg [KEY_LENGTH-1:0] trans_in;
+reg xor_start, add_start, sbpsmc_start, reg_block_rdy, reg_encdec_start;
+reg [BLOCK_SIZE-1:0] key_alfa, key_omega, add_one_in, add_two_in, int_key, shft_tmv, trans_key_in, tmv_key, round_out;
+wire [BLOCK_SIZE-1:0] int_key_in, the_tmv;
+wire [7:0] the_const = (BLOCK_SIZE+KEY_LENGTH)/64 + 1;
+wire m2add_rdy, m2p64add_rdy, sbpsmc_rdy, m2p64sub_rdy, inv_sbpsmc_rdy;
+wire [BLOCK_SIZE-1:0] m2add_out, m2p64add_out, sbpsmc_out, m2p64sub_out, inv_sbpsmc_out;
+
+//Input to the intermediate key transformation
+assign int_key_in = {the_const, {bs_m8{1'b0}}};
+
+//Alfa and Omega Keys for the intermediate key transformation
+always @ (*) begin
+  if (BLOCK_SIZE == KEY_LENGTH) begin
+    key_alfa = key_in;
+    key_omega = key_in;
+  end
+  else begin
+    key_alfa = key_in[KEY_LENGTH-1:KEY_LENGTH/2];
+    key_omega = key_in[KEY_LENGTH/2-1:0];
+  end
+end
+
+//Generation of the TMV signal and its shifted version
+assign the_tmv= {bs_d16{16'h0100}};
+always @ (*) begin
+  case (rnd_num)
+    5'd0    : shft_tmv = the_tmv;
+    5'd2    : shft_tmv = {the_tmv[BLOCK_SIZE-2:0],  1'd0};
+    5'd4    : shft_tmv = {the_tmv[BLOCK_SIZE-3:0],  2'd0};
+    5'd6    : shft_tmv = {the_tmv[BLOCK_SIZE-4:0],  3'd0};
+    5'd8    : shft_tmv = {the_tmv[BLOCK_SIZE-5:0],  4'd0};
+    5'd10   : shft_tmv = {the_tmv[BLOCK_SIZE-6:0],  5'd0};
+    5'd12   : shft_tmv = {the_tmv[BLOCK_SIZE-7:0],  6'd0};
+    5'd14   : shft_tmv = {the_tmv[BLOCK_SIZE-8:0],  7'd0};
+    5'd16   : shft_tmv = {the_tmv[BLOCK_SIZE-9:0],  7'd0, 1'b1};
+    5'd18   : shft_tmv = {the_tmv[BLOCK_SIZE-10:0], 7'd0, 1'b1, 1'b0}; //Last two lines are due to the conflict between rotate and shift
+    default : shft_tmv = the_tmv;
+  endcase
+end
+
+//Generation of the input to the transformations
+always @ (*) begin
+  if (BLOCK_SIZE == KEY_LENGTH) begin
+    if (BLOCK_SIZE == 128) begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = {key_in[63:0], key_in[127:64]};
+        5'd4    : trans_in = key_in;
+        5'd6    : trans_in = {key_in[63:0], key_in[127:64]};
+        5'd8    : trans_in = key_in;
+        5'd10   : trans_in = {key_in[63:0], key_in[127:64]};
+        default : trans_in = key_in;
+      endcase
+    end
+    else if (BLOCK_SIZE == 256) begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd4    : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd6    : trans_in = {key_in[63:0],  key_in[255:64]};
+        5'd8    : trans_in = key_in;
+        5'd10   : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd12   : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd14   : trans_in = {key_in[63:0],  key_in[255:64]};
+        default : trans_in = key_in;
+      endcase
+    end
+    else begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = {key_in[447:0], key_in[511:448]};
+        5'd4    : trans_in = {key_in[383:0], key_in[511:384]};
+        5'd6    : trans_in = {key_in[319:0], key_in[511:320]};
+        5'd8    : trans_in = {key_in[255:0], key_in[511:256]};
+        5'd10   : trans_in = {key_in[191:0], key_in[511:192]};
+        5'd12   : trans_in = {key_in[127:0], key_in[511:128]};
+        5'd14   : trans_in = {key_in[63:0],  key_in[511:64]};
+        5'd16   : trans_in = key_in;
+        5'd18   : trans_in = {key_in[447:0], key_in[511:448]};
+        default : trans_in = key_in;
+      endcase
+    end
+  end
+  else begin
+    if (BLOCK_SIZE == 128) begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = key_in;
+        5'd4    : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd6    : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd8    : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd10   : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd12   : trans_in = {key_in[63:0],  key_in[255:64]};
+        5'd14   : trans_in = {key_in[63:0],  key_in[255:64]};
+        default : trans_in = key_in;
+      endcase
+    end
+    else begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = key_in;
+        5'd4    : trans_in = {key_in[447:0], key_in[511:448]};
+        5'd6    : trans_in = {key_in[447:0], key_in[511:448]};
+        5'd8    : trans_in = {key_in[383:0], key_in[511:384]};
+        5'd10   : trans_in = {key_in[383:0], key_in[511:384]};
+        5'd12   : trans_in = {key_in[319:0], key_in[511:320]};
+        5'd14   : trans_in = {key_in[319:0], key_in[511:320]};
+        5'd16   : trans_in = {key_in[255:0], key_in[511:256]};
+        5'd18   : trans_in = {key_in[255:0], key_in[511:256]};
+        default : trans_in = key_in;
+      endcase
+    end
+  end
+end
+always @ (*) begin
+  if (BLOCK_SIZE == KEY_LENGTH) begin
+    trans_key_in = trans_in;
+  end
+  else begin
+    case (rnd_num) 
+      5'd0    : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE];
+      5'd2    : trans_key_in = trans_in[BLOCK_SIZE-1:0];
+      5'd4    : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd6    : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      5'd8    : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd10   : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      5'd12   : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd14   : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      5'd16   : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd18   : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      default : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+    endcase
+  end
+end
+
+//The reg_encdec_start signal indicates that the encryption process is started
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    reg_encdec_start <= 1'b0;
+  end
+  else begin
+    if (block_rdy == 1'b1) begin
+      reg_encdec_start <= 1'b0;
+    end
+    else begin
+      if (start == 1'b1) begin
+        reg_encdec_start <= 1'b1;
+      end
+    end
+  end
+end
+
+//Block inputs in each state  
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    rnd_num <= 5'd0;
+    add_start <= 1'b0;
+    xor_start <= 1'b0;
+    curr_state <= 6'd0;
+    sbpsmc_start <= 1'b0;
+    reg_block_rdy <= 1'b0;
+    tmv_key <= {BLOCK_SIZE{1'b0}};
+    int_key <= {BLOCK_SIZE{1'b0}};
+    round_out <= {BLOCK_SIZE{1'b0}};
+    add_one_in <= {BLOCK_SIZE{1'b0}};
+    add_two_in <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (reg_encdec_start == 1'b0) begin
+      rnd_num <= 5'd0;
+      add_start <= 1'b0;
+      xor_start <= 1'b0;
+      curr_state <= 6'd0;
+      sbpsmc_start <= 1'b0;
+      reg_block_rdy <= 1'b0;
+      tmv_key <= {BLOCK_SIZE{1'b0}};
+      int_key <= {BLOCK_SIZE{1'b0}};
+      round_out <= {BLOCK_SIZE{1'b0}};
+      add_one_in <= {BLOCK_SIZE{1'b0}};
+      add_two_in <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      //Encryption
+      if (mode == 1'b0) begin
+        case (curr_state)
+          //Intermediate key generattion starts here
+          6'd0 : begin
+            //ADD - INTKEY
+            add_start <= 1'b1;
+            add_one_in <= int_key_in;
+            add_two_in <= key_alfa;
+
+            curr_state <= 6'd1;
+          end
+          6'd1 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //ADD - INTKEY
+              add_start <= 1'b0;
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd2;
+            end
+          end
+          6'd2 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b0;
+              //XOR - INTKEY
+              xor_start <= 1'b1;
+              add_one_in <= key_omega;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd3;
+            end
+          end
+          6'd3 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - INTKEY
+              xor_start <= 1'b0;
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+              
+              curr_state <= 6'd4;
+            end
+          end
+          6'd4 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b0;
+              //ADD - INTKEY
+              add_start <= 1'b1;
+              add_one_in <= key_alfa;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd5;
+            end
+          end
+          6'd5 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //RND - KEY0
+              rnd_num <= 5'd0;
+
+              //ADD - INTKEY
+              add_start <= 1'b0;
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+              
+              curr_state <= 6'd6;
+            end
+          end
+          //Intermediate key generation ends and round 0 key generation starts here
+          6'd6 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              int_key <= sbpsmc_out;
+
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY0
+              add_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd7;
+            end
+          end
+          6'd7 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY0
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd8;
+            end
+          end
+          6'd8 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //ADD - KEY0
+              add_start <= 1'b0;
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd9;
+            end
+          end
+          6'd9 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b0;
+              //XOR - KEY0
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd10;
+            end
+          end
+          6'd10 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - KEY0
+              xor_start <= 1'b0;
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd11;
+            end
+          end
+          6'd11 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY0
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd12;
+            end
+          end
+          //Round 0 key generation ends here and Round 0-1 operations start here
+          6'd12 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+              //ADD - RND0
+              add_one_in <= m2p64add_out;
+              add_two_in <= block_in;
+
+              curr_state <= 6'd13;
+            end
+          end
+          6'd13 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //ADD - RND0
+              add_start <= 1'b0;
+              //SPLT - RND1
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd14;
+            end
+          end
+          6'd14 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //RND - KEY2
+              rnd_num <= rnd_num + 5'd2;
+              //XOR - RND1
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd15;
+            end
+          end
+          //Round 2 key generation starts here
+          6'd15 : begin
+            if (m2add_rdy == 1'b1) begin
+              round_out <= m2add_out;
+              //XOR - RND1
+              xor_start <= 1'b0;
+              //ADD - KEY2
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd16;
+            end
+          end
+          6'd16 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY2
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd17;
+            end
+          end
+          6'd17 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //ADD - KEY2
+              add_start <= 1'b0;
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd18;
+            end
+          end
+          6'd18 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b0;
+              //XOR - KEY2
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd19;
+            end
+          end
+          6'd19 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - KEY2
+              xor_start <= 1'b0;
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd20;
+            end
+          end
+          6'd20 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY2
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd21;
+            end
+          end
+          //Round 2 key generation ends here and Round 2-3 operations start here
+          6'd21 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY2
+              add_start <= 1'b0;
+              //SPLT - RND2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 6'd22;
+            end
+          end
+          6'd22 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT RND2
+              sbpsmc_start <= 1'b0;
+              //XOR - RND2
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd23;
+            end
+          end
+          6'd23 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - RND2
+              xor_start <= 1'b0;
+              //SPLT -RND3
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd24;
+            end
+          end
+          6'd24 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //RND - KEY4
+              rnd_num <= rnd_num + 5'd2;
+
+              //SPLT RND3
+              sbpsmc_start <= 1'b0;
+              //XOR - RND3
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd25;
+            end
+          end
+          //Round 2-3 operations end here and Round 4 key generation starts here
+          6'd25 : begin
+            if (m2add_rdy == 1'b1) begin
+              round_out <= m2add_out;
+              //XOR - RND3
+              xor_start <= 1'b0;
+              //ADD - KEY4
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd26;
+            end
+          end
+          6'd26 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY4
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd27;
+            end
+          end
+          6'd27 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //ADD - KEY4
+              add_start <= 1'b0;
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd28;
+            end
+          end
+          6'd28 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b0;
+              //XOR - KEY4
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd29;
+            end
+          end
+          6'd29 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - KEY4
+              xor_start <= 1'b0;
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd30;
+            end
+          end
+          6'd30 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY4
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd31;
+            end
+          end
+          //Round 4 key generation ends here and Round 4-5 operations start here
+          6'd31 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY4
+              add_start <= 1'b0;
+              //SPLT - RND4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 6'd32;
+            end
+          end
+          6'd32 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT RND4
+              sbpsmc_start <= 1'b0;
+              //XOR - RND4
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd33;
+            end
+          end
+          6'd33 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - RND4
+              xor_start <= 1'b0;
+              //SPLT -RND5
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd34;
+            end
+          end
+          6'd34 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //RND - KEY6
+              rnd_num <= rnd_num + 5'd2;
+
+              //SPLT RND5
+              sbpsmc_start <= 1'b0;
+              //XOR - RND5
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd35;
+            end
+          end
+          //Round 4-5 operations end here and Round 6 key generation starts here
+          6'd35 : begin
+            if (m2add_rdy == 1'b1) begin
+              round_out <= m2add_out;
+              //XOR - RND5
+              xor_start <= 1'b0;
+              //ADD - KEY6
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd36;
+            end
+          end
+          6'd36 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY6
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd37;
+            end
+          end
+          6'd37 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //ADD - KEY6
+              add_start <= 1'b0;
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd38;
+            end
+          end
+          6'd38 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b0;
+              //XOR - KEY6
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd39;
+            end
+          end
+          6'd39 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - KEY6
+              xor_start <= 1'b0;
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd40;
+            end
+          end
+          6'd40 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY6
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd41;
+            end
+          end
+          //Round 6 key generation ends here and Round 6-7 operations start here
+          6'd41 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY6
+              add_start <= 1'b0;
+              //SPLT - RND6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 6'd42;
+            end
+          end
+          6'd42 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT RND6
+              sbpsmc_start <= 1'b0;
+              //XOR - RND6
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd43;
+            end
+          end
+          6'd43 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - RND6
+              xor_start <= 1'b0;
+              //SPLT -RND7
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd44;
+            end
+          end
+          6'd44 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //RND - KEY8
+              rnd_num <= rnd_num + 5'd2;
+
+              //SPLT RND7
+              sbpsmc_start <= 1'b0;
+              //XOR - RND7
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd45;
+            end
+          end
+          //Round 6-7 operations end here and Round 8 key generation starts here
+          6'd45 : begin
+            if (m2add_rdy == 1'b1) begin
+              round_out <= m2add_out;
+              //XOR - RND7
+              xor_start <= 1'b0;
+              //ADD - KEY8
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd46;
+            end
+          end
+          6'd46 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY8
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd47;
+            end
+          end
+          6'd47 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //ADD - KEY8
+              add_start <= 1'b0;
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd48;
+            end
+          end
+          6'd48 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b0;
+              //XOR - KEY8
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd49;
+            end
+          end
+          6'd49 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - KEY8
+              xor_start <= 1'b0;
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd50;
+            end
+          end
+          6'd50 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY8
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd51;
+            end
+          end
+          //Round 8 key generation ends here and Round 8-9 operations start here
+          6'd51 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY8
+              add_start <= 1'b0;
+              //SPLT - RND8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 6'd52;
+            end
+          end
+          6'd52 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT RND8
+              sbpsmc_start <= 1'b0;
+              //XOR - RND8
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd53;
+            end
+          end
+          6'd53 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - RND8
+              xor_start <= 1'b0;
+              //SPLT -RND9
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd54;
+            end
+          end
+          6'd54 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //RND - KEY10
+              rnd_num <= rnd_num + 5'd2;
+
+              //SPLT RND9
+              sbpsmc_start <= 1'b0;
+              //XOR - RND9
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd55;
+            end
+          end
+          //Round 8-9 operations end here and Round 10 key generation starts here
+          6'd55 : begin
+            if (m2add_rdy == 1'b1) begin
+              round_out <= m2add_out;
+              //XOR - RND9
+              xor_start <= 1'b0;
+              //ADD - KEY10
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              if (rnd_cnt == 5'd10) begin
+                curr_state <= 6'd56;
+              end
+              else if (rnd_cnt == 5'd14) begin
+                if (rnd_num  == 5'd14) begin
+                  curr_state <= 6'd56;
+                end
+                else begin
+                  curr_state <= 6'd36;
+                end
+              end
+              else begin
+                if (rnd_num  == 5'd18) begin
+                  curr_state <= 6'd56;
+                end
+                else begin
+                  curr_state <= 6'd16;
+                end
+              end
+            end
+          end
+          6'd56 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY10
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd57;
+            end
+          end
+          6'd57 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //ADD - KEY10
+              add_start <= 1'b0;
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd58;
+            end
+          end
+          6'd58 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b0;
+              //XOR - KEY10
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd59;
+            end
+          end
+          6'd59 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - KEY10
+              xor_start <= 1'b0;
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd60;
+            end
+          end
+          6'd60 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY10
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd61;
+            end
+          end
+          //Round 10 key generation ends here and Round 10 operation starts here
+          6'd61 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY10
+              add_start <= 1'b0;
+              //SPLT - RND10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 6'd62;
+            end
+          end
+          6'd62 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT RND10
+              sbpsmc_start <= 1'b0;
+              //ADD - RND10
+              add_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd63;
+            end
+          end
+          6'd63 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              round_out <= m2p64add_out;
+              reg_block_rdy <= 1'b1;
+
+              //ADD - RND10
+              add_start <= 1'b0;
+
+              curr_state <= 6'd0;
+            end
+          end
+          default : begin
+            rnd_num <= 5'd0;
+            add_start <= 1'b0;
+            xor_start <= 1'b0;
+            curr_state <= 6'd0;
+            sbpsmc_start <= 1'b0;
+            reg_block_rdy <= 1'b0;
+            tmv_key <= {BLOCK_SIZE{1'b0}};
+            int_key <= {BLOCK_SIZE{1'b0}};
+            round_out <= {BLOCK_SIZE{1'b0}};
+            add_one_in <= {BLOCK_SIZE{1'b0}};
+            add_two_in <= {BLOCK_SIZE{1'b0}};
+          end
+        endcase
+      end
+      //Decryption
+      else begin
+        case (curr_state)
+          //Intermediate key generattion starts here
+          6'd0 : begin
+            //ADD - INTKEY
+            add_start <= 1'b1;
+            add_one_in <= int_key_in;
+            add_two_in <= key_alfa;
+
+            curr_state <= 6'd1;
+          end
+          6'd1 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //ADD - INTKEY
+              add_start <= 1'b0;
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd2;
+            end
+          end
+          6'd2 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b0;
+              //XOR - INTKEY
+              xor_start <= 1'b1;
+              add_one_in <= key_omega;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd3;
+            end
+          end
+          6'd3 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - INTKEY
+              xor_start <= 1'b0;
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+              
+              curr_state <= 6'd4;
+            end
+          end
+          6'd4 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b0;
+              //ADD - INTKEY
+              add_start <= 1'b1;
+              add_one_in <= key_alfa;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd5;
+            end
+          end
+          6'd5 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //RND - KEY10
+              rnd_num <= rnd_cnt;
+
+              //ADD - INTKEY
+              add_start <= 1'b0;
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+              
+              curr_state <= 6'd6;
+            end
+          end
+          //Intermediate key generation ends and round 10 key generation starts here
+          6'd6 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              int_key <= sbpsmc_out;
+
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY10
+              add_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd7;
+            end
+          end
+          6'd7 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY10
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd8;
+            end
+          end
+          6'd8 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //ADD - KEY10
+              add_start <= 1'b0;
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd9;
+            end
+          end
+          6'd9 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b0;
+              //XOR - KEY10
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd10;
+            end
+          end
+          6'd10 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - KEY10
+              xor_start <= 1'b0;
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd11;
+            end
+          end
+          6'd11 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY10
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd12;
+            end
+          end
+          //Round 10 key generation ends here and Round 10 operations start here
+          6'd12 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+              //SUB - RND10
+              add_one_in <= block_in;
+              add_two_in <= m2p64add_out;
+
+              curr_state <= 6'd13;
+            end
+          end
+          6'd13 : begin
+            if (m2p64sub_rdy == 1'b1) begin
+              //RND - KEY8
+              rnd_num <= rnd_num - 5'd2;
+              //ADD - RND10
+              add_start <= 1'b0;
+              //INV SPLT - RND10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64sub_out;
+
+              curr_state <= 6'd14;
+            end
+          end
+          //Round 10 operations end here and Round 8 key operations start here
+          6'd14 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              round_out <= inv_sbpsmc_out;
+              //INV SPLT - RND10
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY8
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd15;
+            end
+          end
+          6'd15 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY8
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd16;
+            end
+          end
+          6'd16 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //ADD - KEY8
+              add_start <= 1'b0;
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd17;
+            end
+          end
+          6'd17 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b0;
+              //XOR - KEY8
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd18;
+            end
+          end
+          6'd18 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - KEY8
+              xor_start <= 1'b0;
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd19;
+            end
+          end
+          6'd19 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY8
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd20;
+            end
+          end
+          //Round 8 key generation ends here and Round 9-8 operations start here
+          6'd20 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+              //ADD - KEY8
+              add_start <= 1'b0;
+              //XOR - RND9
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {m2p64add_out[BLOCK_SIZE-1-the_lr:0], m2p64add_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd21;
+            end
+          end
+          6'd21 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - RND9
+              xor_start <= 1'b0;
+              //INV SPLT - RND9
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd22;
+            end
+          end
+          6'd22 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              //INV SPLT - RND9
+              sbpsmc_start <= 1'b0;
+              //XOR - RND8
+              xor_start <= 1'b1;
+              add_one_in <= inv_sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd23;
+            end
+          end
+          6'd23 : begin
+            if (m2add_rdy == 1'b1) begin
+              //RND - KEY6
+              rnd_num <= rnd_num - 5'd2;
+              //XOR - RND8
+              xor_start <= 1'b0;
+              //INV SPLT - RND8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd24;
+            end
+          end
+          //Round 9-8 operations end here and Round 6 key operations start here
+          6'd24 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              round_out <= inv_sbpsmc_out;
+              //INV SPLT - RND8
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY6
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd25;
+            end
+          end
+          6'd25 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY6
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd26;
+            end
+          end
+          6'd26 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //ADD - KEY6
+              add_start <= 1'b0;
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd27;
+            end
+          end
+          6'd27 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b0;
+              //XOR - KEY6
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd28;
+            end
+          end
+          6'd28 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - KEY6
+              xor_start <= 1'b0;
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd29;
+            end
+          end
+          6'd29 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY6
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd30;
+            end
+          end
+          //Round 6 key generation ends here and Round 7-6 operations start here
+          6'd30 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+              //ADD - KEY6
+              add_start <= 1'b0;
+              //XOR - RND7
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {m2p64add_out[BLOCK_SIZE-1-the_lr:0], m2p64add_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd31;
+            end
+          end
+          6'd31 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - RND7
+              xor_start <= 1'b0;
+              //INV SPLT - RND7
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd32;
+            end
+          end
+          6'd32 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              //INV SPLT - RND7
+              sbpsmc_start <= 1'b0;
+              //XOR - RND6
+              xor_start <= 1'b1;
+              add_one_in <= inv_sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd33;
+            end
+          end
+          6'd33 : begin
+            if (m2add_rdy == 1'b1) begin
+              //RND - KEY4
+              rnd_num <= rnd_num - 5'd2;
+              //XOR - RND6
+              xor_start <= 1'b0;
+              //INV SPLT - RND6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd34;
+            end
+          end
+          //Round 7-6 operations end here and Round 4 key operations start here
+          6'd34 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              round_out <= inv_sbpsmc_out;
+              //INV SPLT - RND6
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY4
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd35;
+            end
+          end
+          6'd35 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY4
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd36;
+            end
+          end
+          6'd36 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //ADD - KEY4
+              add_start <= 1'b0;
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd37;
+            end
+          end
+          6'd37 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b0;
+              //XOR - KEY4
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd38;
+            end
+          end
+          6'd38 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - KEY4
+              xor_start <= 1'b0;
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd39;
+            end
+          end
+          6'd39 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY4
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd40;
+            end
+          end
+          //Round 4 key generation ends here and Round 5-4 operations start here
+          6'd40 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+              //ADD - KEY4
+              add_start <= 1'b0;
+              //XOR - RND5
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {m2p64add_out[BLOCK_SIZE-1-the_lr:0], m2p64add_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd41;
+            end
+          end
+          6'd41 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - RND5
+              xor_start <= 1'b0;
+              //INV SPLT - RND5
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd42;
+            end
+          end
+          6'd42 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              //INV SPLT - RND5
+              sbpsmc_start <= 1'b0;
+              //XOR - RND4
+              xor_start <= 1'b1;
+              add_one_in <= inv_sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd43;
+            end
+          end
+          6'd43 : begin
+            if (m2add_rdy == 1'b1) begin
+              //RND - KEY2
+              rnd_num <= rnd_num - 5'd2;
+              //XOR - RND4
+              xor_start <= 1'b0;
+              //INV SPLT - RND4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd44;
+            end
+          end
+          //Round 5-4 operations end here and Round 2 key operations start here
+          6'd44 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              round_out <= inv_sbpsmc_out;
+              //INV SPLT - RND4
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY2
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd45;
+            end
+          end
+          6'd45 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY2
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd46;
+            end
+          end
+          6'd46 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //ADD - KEY2
+              add_start <= 1'b0;
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd47;
+            end
+          end
+          6'd47 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b0;
+              //XOR - KEY2
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd48;
+            end
+          end
+          6'd48 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - KEY2
+              xor_start <= 1'b0;
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd49;
+            end
+          end
+          6'd49 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY2
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd50;
+            end
+          end
+          //Round 2 key generation ends here and Round 3-2 operations start here
+          6'd50 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+              //ADD - KEY2
+              add_start <= 1'b0;
+              //XOR - RND3
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {m2p64add_out[BLOCK_SIZE-1-the_lr:0], m2p64add_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd51;
+            end
+          end
+          6'd51 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - RND3
+              xor_start <= 1'b0;
+              //INV SPLT - RND3
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd52;
+            end
+          end
+          6'd52 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              //INV SPLT - RND3
+              sbpsmc_start <= 1'b0;
+              //XOR - RND2
+              xor_start <= 1'b1;
+              add_one_in <= inv_sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd53;
+            end
+          end
+          6'd53 : begin
+            if (m2add_rdy == 1'b1) begin
+              //RND - KEY0
+              rnd_num <= rnd_num - 5'd2;
+              //XOR - RND2
+              xor_start <= 1'b0;
+              //INV SPLT - RND2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd54;
+            end
+          end
+          //Round 3-2 operations end here and Round 0 key operations start here
+          6'd54 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              round_out <= inv_sbpsmc_out;
+              //INV SPLT - RND2
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY0
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              if (rnd_cnt == 5'd10) begin
+                curr_state <= 6'd55;
+              end
+              else if (rnd_cnt == 5'd14) begin
+                if (rnd_num == 5'd0) begin
+                  curr_state <= 6'd55;
+                end
+                else begin
+                  curr_state <= 6'd35;
+                end
+              end
+              else begin
+                if (rnd_num == 5'd0) begin
+                  curr_state <= 6'd55;
+                end
+                else begin
+                  curr_state <= 6'd15;
+                end
+              end
+            end
+          end
+          6'd55 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY0
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd56;
+            end
+          end
+          6'd56 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //ADD - KEY0
+              add_start <= 1'b0;
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd57;
+            end
+          end
+          6'd57 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b0;
+              //XOR - KEY0
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd58;
+            end
+          end
+          6'd58 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - KEY0
+              xor_start <= 1'b0;
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd59;
+            end
+          end
+          6'd59 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b0;
+              //ADD - KEY0
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd60;
+            end
+          end
+          //Round 0 key generation ends here and Round 1-0 operations start here
+          6'd60 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              tmv_key <= m2p64add_out;
+              //ADD - KEY0
+              add_start <= 1'b0;
+              //XOR - RND1
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {m2p64add_out[BLOCK_SIZE-1-the_lr:0], m2p64add_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd61;
+            end
+          end
+          6'd61 : begin
+            if (m2add_rdy == 1'b1) begin
+              //XOR - RND1
+              xor_start <= 1'b0;
+              //INV SPLT - RND1
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd62;
+            end
+          end
+          6'd62 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              //INV SPLT - RND1
+              sbpsmc_start <= 1'b0;
+              //SUB - RND0
+              add_start <= 1'b1;
+              add_one_in <= inv_sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd63;
+            end
+          end
+          6'd63 : begin
+            if (m2p64sub_rdy == 1'b1) begin
+              round_out <= m2p64sub_out;
+              reg_block_rdy <= 1'b1;
+
+              //SUB - RND0
+              add_start <= 1'b0;
+
+              curr_state <= 6'd0;
+            end
+          end
+          default : begin
+            rnd_num <= 5'd0;
+            add_start <= 1'b0;
+            xor_start <= 1'b0;
+            curr_state <= 6'd0;
+            sbpsmc_start <= 1'b0;
+            reg_block_rdy <= 1'b0;
+            tmv_key <= {BLOCK_SIZE{1'b0}};
+            int_key <= {BLOCK_SIZE{1'b0}};
+            round_out <= {BLOCK_SIZE{1'b0}};
+            add_one_in <= {BLOCK_SIZE{1'b0}};
+            add_two_in <= {BLOCK_SIZE{1'b0}};
+          end
+        endcase
+      end
+    end
+  end
+end
+
+//Additions
+kalyna_mod2_add_serial64b #(.BLOCK_SIZE(BLOCK_SIZE)) m2a_ins (.clk(clk), .rst(rst), .m2add_start(xor_start), .m2add_in_one(add_one_in), .m2add_in_two(add_two_in), .m2add_out(m2add_out), .m2add_rdy(m2add_rdy));
+kalyna_mod2p64_add_serial64b #(.BLOCK_SIZE(BLOCK_SIZE)) m2p64a_ins (.clk(clk), .rst(rst), .m2p64add_start(add_start), .m2p64add_in_one(add_one_in), .m2p64add_in_two(add_two_in), .m2p64add_out(m2p64add_out), .m2p64add_rdy(m2p64add_rdy));
+//Substitution Permutation Mix-Column
+kalyna_sbpsmc_serial64b #(.BLOCK_SIZE(BLOCK_SIZE)) sbpsmc64b_ins (.clk(clk), .rst(rst), .sbpsmc_start(sbpsmc_start), .sbpsmc_in(add_one_in), .sbpsmc_out(sbpsmc_out), .sbpsmc_rdy(sbpsmc_rdy));
+//Inverse Addition
+kalyna_inv_mod2p64_add_serial64b #(.BLOCK_SIZE(BLOCK_SIZE)) inv_m2p64a_ins (.clk(clk), .rst(rst), .m2p64add_start(add_start), .m2p64add_in_one(add_one_in), .m2p64add_in_two(add_two_in), .m2p64add_out(m2p64sub_out), .m2p64add_rdy(m2p64sub_rdy));
+//Inverse Substitution Permutation Mix-Column
+kalyna_inv_sbpsmc_serial64b #(.BLOCK_SIZE(BLOCK_SIZE)) inv_sbpsmc64b_ins (.clk(clk), .rst(rst), .sbpsmc_start(sbpsmc_start), .sbpsmc_in(add_one_in), .sbpsmc_out(inv_sbpsmc_out), .sbpsmc_rdy(inv_sbpsmc_rdy));
+
+//Block Outputs
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    block_rdy <= 1'b0;
+    block_out <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (reg_encdec_start == 1'b0) begin
+      block_rdy <= 1'b0;
+      block_out <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      if (reg_block_rdy == 1'b1) begin
+        block_rdy <= 1'b1;
+        block_out <= round_out;
+      end
+    end
+  end
+end
+
+endmodule
+
+//KALYNA ENCRYPTION and DECRYPTION BLOCK - SERIAL - ONE 64-bit OPERATION in ONE CLOCK CYCLE - First-Order Masking + Hiding 
+module kalyna_encdec_block_serial64b_oboc_fomhid #(parameter BLOCK_SIZE = 128, parameter KEY_LENGTH = 128) (clk, rst, start, mode, block_in, key_in, block_out, block_rdy);
+
+input clk, rst, start, mode;
+input [BLOCK_SIZE-1:0] block_in;
+input [KEY_LENGTH-1:0] key_in;
+output reg [BLOCK_SIZE-1:0] block_out;
+output reg block_rdy;
+
+//Local parameters
+localparam bs_m8 = BLOCK_SIZE - 8;
+localparam bs_d16 = BLOCK_SIZE/16;
+localparam the_lr = (BLOCK_SIZE/4+24);
+localparam rnd_cnt = (BLOCK_SIZE == KEY_LENGTH && BLOCK_SIZE == 128) ? 5'd10 : (BLOCK_SIZE == KEY_LENGTH && BLOCK_SIZE == 256) ? 5'd14 : (BLOCK_SIZE == KEY_LENGTH && BLOCK_SIZE == 512) ? 5'd18 : (BLOCK_SIZE != KEY_LENGTH && BLOCK_SIZE == 128) ? 5'd14 : 5'd18;
+
+//Variables
+reg [4:0] rnd_num;
+reg [5:0] curr_state;
+reg [KEY_LENGTH-1:0] trans_in;
+reg xor_start, add_start, sbpsmc_start, inv_add_start, inv_sbpsmc_start, reg_block_rdy, reg_encdec_start;
+reg [BLOCK_SIZE-1:0] key_alfa, key_omega, add_one_in, add_two_in, int_key, shft_tmv, trans_key_in, tmv_key, round_out;
+wire [63:0] prng_out;
+wire [BLOCK_SIZE-1:0] int_key_in, the_tmv;
+wire [7:0] the_const = (BLOCK_SIZE+KEY_LENGTH)/64 + 1;
+wire m2add_rdy, m2p64add_rdy, sbpsmc_rdy, m2p64sub_rdy, inv_sbpsmc_rdy;
+wire [BLOCK_SIZE-1:0] m2add_out, m2p64add_out, sbpsmc_out, m2p64sub_out, inv_sbpsmc_out;
+
+//Input to the intermediate key transformation
+assign int_key_in = {the_const, {bs_m8{1'b0}}};
+
+//Alfa and Omega Keys for the intermediate key transformation
+always @ (*) begin
+  if (BLOCK_SIZE == KEY_LENGTH) begin
+    key_alfa = key_in;
+    key_omega = key_in;
+  end
+  else begin
+    key_alfa = key_in[KEY_LENGTH-1:KEY_LENGTH/2];
+    key_omega = key_in[KEY_LENGTH/2-1:0];
+  end
+end
+
+//Generation of the TMV signal and its shifted version
+assign the_tmv= {bs_d16{16'h0100}};
+always @ (*) begin
+  case (rnd_num)
+    5'd0    : shft_tmv = the_tmv;
+    5'd2    : shft_tmv = {the_tmv[BLOCK_SIZE-2:0],  1'd0};
+    5'd4    : shft_tmv = {the_tmv[BLOCK_SIZE-3:0],  2'd0};
+    5'd6    : shft_tmv = {the_tmv[BLOCK_SIZE-4:0],  3'd0};
+    5'd8    : shft_tmv = {the_tmv[BLOCK_SIZE-5:0],  4'd0};
+    5'd10   : shft_tmv = {the_tmv[BLOCK_SIZE-6:0],  5'd0};
+    5'd12   : shft_tmv = {the_tmv[BLOCK_SIZE-7:0],  6'd0};
+    5'd14   : shft_tmv = {the_tmv[BLOCK_SIZE-8:0],  7'd0};
+    5'd16   : shft_tmv = {the_tmv[BLOCK_SIZE-9:0],  7'd0, 1'b1};
+    5'd18   : shft_tmv = {the_tmv[BLOCK_SIZE-10:0], 7'd0, 1'b1, 1'b0}; //Last two lines are due to the conflict between rotate and shift
+    default : shft_tmv = the_tmv;
+  endcase
+end
+
+//Generation of the input to the transformations
+always @ (*) begin
+  if (BLOCK_SIZE == KEY_LENGTH) begin
+    if (BLOCK_SIZE == 128) begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = {key_in[63:0], key_in[127:64]};
+        5'd4    : trans_in = key_in;
+        5'd6    : trans_in = {key_in[63:0], key_in[127:64]};
+        5'd8    : trans_in = key_in;
+        5'd10   : trans_in = {key_in[63:0], key_in[127:64]};
+        default : trans_in = key_in;
+      endcase
+    end
+    else if (BLOCK_SIZE == 256) begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd4    : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd6    : trans_in = {key_in[63:0],  key_in[255:64]};
+        5'd8    : trans_in = key_in;
+        5'd10   : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd12   : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd14   : trans_in = {key_in[63:0],  key_in[255:64]};
+        default : trans_in = key_in;
+      endcase
+    end
+    else begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = {key_in[447:0], key_in[511:448]};
+        5'd4    : trans_in = {key_in[383:0], key_in[511:384]};
+        5'd6    : trans_in = {key_in[319:0], key_in[511:320]};
+        5'd8    : trans_in = {key_in[255:0], key_in[511:256]};
+        5'd10   : trans_in = {key_in[191:0], key_in[511:192]};
+        5'd12   : trans_in = {key_in[127:0], key_in[511:128]};
+        5'd14   : trans_in = {key_in[63:0],  key_in[511:64]};
+        5'd16   : trans_in = key_in;
+        5'd18   : trans_in = {key_in[447:0], key_in[511:448]};
+        default : trans_in = key_in;
+      endcase
+    end
+  end
+  else begin
+    if (BLOCK_SIZE == 128) begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = key_in;
+        5'd4    : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd6    : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd8    : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd10   : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd12   : trans_in = {key_in[63:0],  key_in[255:64]};
+        5'd14   : trans_in = {key_in[63:0],  key_in[255:64]};
+        default : trans_in = key_in;
+      endcase
+    end
+    else begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = key_in;
+        5'd4    : trans_in = {key_in[447:0], key_in[511:448]};
+        5'd6    : trans_in = {key_in[447:0], key_in[511:448]};
+        5'd8    : trans_in = {key_in[383:0], key_in[511:384]};
+        5'd10   : trans_in = {key_in[383:0], key_in[511:384]};
+        5'd12   : trans_in = {key_in[319:0], key_in[511:320]};
+        5'd14   : trans_in = {key_in[319:0], key_in[511:320]};
+        5'd16   : trans_in = {key_in[255:0], key_in[511:256]};
+        5'd18   : trans_in = {key_in[255:0], key_in[511:256]};
+        default : trans_in = key_in;
+      endcase
+    end
+  end
+end
+always @ (*) begin
+  if (BLOCK_SIZE == KEY_LENGTH) begin
+    trans_key_in = trans_in;
+  end
+  else begin
+    case (rnd_num) 
+      5'd0    : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE];
+      5'd2    : trans_key_in = trans_in[BLOCK_SIZE-1:0];
+      5'd4    : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd6    : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      5'd8    : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd10   : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      5'd12   : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd14   : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      5'd16   : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd18   : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      default : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+    endcase
+  end
+end
+
+//The reg_encdec_start signal indicates that the encryption process is started
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    reg_encdec_start <= 1'b0;
+  end
+  else begin
+    if (block_rdy == 1'b1) begin
+      reg_encdec_start <= 1'b0;
+    end
+    else begin
+      if (start == 1'b1) begin
+        reg_encdec_start <= 1'b1;
+      end
+    end
+  end
+end
+
+//Block inputs in each state  
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    rnd_num <= 5'd0;
+    add_start <= 1'b0;
+    xor_start <= 1'b0;
+    curr_state <= 6'd0;
+    sbpsmc_start <= 1'b0;
+    reg_block_rdy <= 1'b0;
+    inv_add_start <= 1'b0;
+    inv_sbpsmc_start <= 1'b0;
+    tmv_key <= {BLOCK_SIZE{1'b0}};
+    int_key <= {BLOCK_SIZE{1'b0}};
+    round_out <= {BLOCK_SIZE{1'b0}};
+    add_one_in <= {BLOCK_SIZE{1'b0}};
+    add_two_in <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (reg_encdec_start == 1'b0) begin
+      rnd_num <= 5'd0;
+      add_start <= 1'b0;
+      xor_start <= 1'b0;
+      curr_state <= 6'd0;
+      sbpsmc_start <= 1'b0;
+      reg_block_rdy <= 1'b0;
+      inv_add_start <= 1'b0;
+      inv_sbpsmc_start <= 1'b0;
+      tmv_key <= {BLOCK_SIZE{1'b0}};
+      int_key <= {BLOCK_SIZE{1'b0}};
+      round_out <= {BLOCK_SIZE{1'b0}};
+      add_one_in <= {BLOCK_SIZE{1'b0}};
+      add_two_in <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      //Encryption
+      if (mode == 1'b0) begin
+        case (curr_state)
+          //Intermediate key generattion starts here
+          6'd0 : begin
+            //SOME OPERATIONS
+            xor_start <= add_one_in[0];
+            sbpsmc_start <= add_one_in[1];
+            inv_add_start <= add_two_in[0];
+            inv_sbpsmc_start <= add_two_in[1];
+
+            //ADD - INTKEY
+            add_start <= 1'b1;
+            add_one_in <= int_key_in;
+            add_two_in <= key_alfa;
+
+            curr_state <= 6'd1;
+          end
+          6'd1 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[2];
+              xor_start <= add_one_in[3];
+              inv_add_start <= add_two_in[2];
+              inv_sbpsmc_start <= add_two_in[3];
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd2;
+            end
+          end
+          6'd2 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[4];
+              sbpsmc_start <= add_one_in[5];
+              inv_add_start <= add_two_in[4];
+              inv_sbpsmc_start <= add_two_in[5];
+
+              //XOR - INTKEY
+              xor_start <= 1'b1;
+              add_one_in <= key_omega;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd3;
+            end
+          end
+          6'd3 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[6];
+              xor_start <= add_one_in[7];
+              inv_add_start <= add_two_in[6];
+              inv_sbpsmc_start <= add_two_in[7];
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+              
+              curr_state <= 6'd4;
+            end
+          end
+          6'd4 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[8];
+              sbpsmc_start <= add_one_in[9];
+              inv_add_start <= add_two_in[8];
+              inv_sbpsmc_start <= add_two_in[9];
+
+              //ADD - INTKEY
+              add_start <= 1'b1;
+              add_one_in <= key_alfa;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd5;
+            end
+          end
+          6'd5 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[10];
+              xor_start <= add_one_in[11];
+              inv_add_start <= add_two_in[10];
+              inv_sbpsmc_start <= add_two_in[11];
+
+              //RND - KEY0
+              rnd_num <= 5'd0;
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+              
+              curr_state <= 6'd6;
+            end
+          end
+          //Intermediate key generation ends and round 0 key generation starts here
+          6'd6 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[12];
+              sbpsmc_start <= add_one_in[13];
+              inv_add_start <= add_two_in[12];
+              inv_sbpsmc_start <= add_two_in[13];
+
+              int_key <= sbpsmc_out;
+
+              //ADD - KEY0
+              add_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd7;
+            end
+          end
+          6'd7 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[14];
+              sbpsmc_start <= add_one_in[15];
+              inv_add_start <= add_two_in[14];
+              inv_sbpsmc_start <= add_two_in[15];
+
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY0
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd8;
+            end
+          end
+          6'd8 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[16];
+              xor_start <= add_one_in[17];
+              inv_add_start <= add_two_in[16];
+              inv_sbpsmc_start <= add_two_in[17];
+
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd9;
+            end
+          end
+          6'd9 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[18];
+              sbpsmc_start <= add_one_in[19];
+              inv_add_start <= add_two_in[18];
+              inv_sbpsmc_start <= add_two_in[19];
+
+              //XOR - KEY0
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd10;
+            end
+          end
+          6'd10 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[20];
+              xor_start <= add_one_in[21];
+              inv_add_start <= add_two_in[20];
+              inv_sbpsmc_start <= add_two_in[21];
+
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd11;
+            end
+          end
+          6'd11 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[22];
+              sbpsmc_start <= add_one_in[23];
+              inv_add_start <= add_two_in[22];
+              inv_sbpsmc_start <= add_two_in[23];
+
+              //ADD - KEY0
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd12;
+            end
+          end
+          //Round 0 key generation ends here and Round 0-1 operations start here
+          6'd12 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[24];
+              sbpsmc_start <= add_one_in[25];
+              inv_add_start <= add_two_in[24];
+              inv_sbpsmc_start <= add_two_in[25];
+
+              tmv_key <= m2p64add_out;
+              //ADD - RND0
+              add_one_in <= m2p64add_out;
+              add_two_in <= block_in;
+
+              curr_state <= 6'd13;
+            end
+          end
+          6'd13 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[26];
+              xor_start <= add_one_in[27];
+              inv_add_start <= add_two_in[26];
+              inv_sbpsmc_start <= add_two_in[27];
+
+              //SPLT - RND1
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd14;
+            end
+          end
+          6'd14 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[28];
+              sbpsmc_start <= add_one_in[29];
+              inv_add_start <= add_two_in[28];
+              inv_sbpsmc_start <= add_two_in[29];
+
+              //RND - KEY2
+              rnd_num <= rnd_num + 5'd2;
+              //XOR - RND1
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd15;
+            end
+          end
+          //Round 2 key generation starts here
+          6'd15 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[30];
+              sbpsmc_start <= add_one_in[31];
+              inv_add_start <= add_two_in[30];
+              inv_sbpsmc_start <= add_two_in[31];
+
+              round_out <= m2add_out;
+              //ADD - KEY2
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd16;
+            end
+          end
+          6'd16 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[32];
+              sbpsmc_start <= add_one_in[33];
+              inv_add_start <= add_two_in[32];
+              inv_sbpsmc_start <= add_two_in[33];
+
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY2
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd17;
+            end
+          end
+          6'd17 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[34];
+              xor_start <= add_one_in[35];
+              inv_add_start <= add_two_in[34];
+              inv_sbpsmc_start <= add_two_in[35];
+
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd18;
+            end
+          end
+          6'd18 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[36];
+              sbpsmc_start <= add_one_in[37];
+              inv_add_start <= add_two_in[36];
+              inv_sbpsmc_start <= add_two_in[37];
+
+              //XOR - KEY2
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd19;
+            end
+          end
+          6'd19 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[38];
+              xor_start <= add_one_in[39];
+              inv_add_start <= add_two_in[38];
+              inv_sbpsmc_start <= add_two_in[39];
+
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd20;
+            end
+          end
+          6'd20 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[40];
+              sbpsmc_start <= add_one_in[41];
+              inv_add_start <= add_two_in[40];
+              inv_sbpsmc_start <= add_two_in[41];
+
+              //ADD - KEY2
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd21;
+            end
+          end
+          //Round 2 key generation ends here and Round 2-3 operations start here
+          6'd21 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[42];
+              xor_start <= add_one_in[43];
+              inv_add_start <= add_two_in[42];
+              inv_sbpsmc_start <= add_two_in[43];
+
+              tmv_key <= m2p64add_out;
+
+              //SPLT - RND2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 6'd22;
+            end
+          end
+          6'd22 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[44];
+              sbpsmc_start <= add_one_in[45];
+              inv_add_start <= add_two_in[44];
+              inv_sbpsmc_start <= add_two_in[45];
+
+              //XOR - RND2
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd23;
+            end
+          end
+          6'd23 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[46];
+              xor_start <= add_one_in[47];
+              inv_add_start <= add_two_in[46];
+              inv_sbpsmc_start <= add_two_in[47];
+
+              //SPLT -RND3
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd24;
+            end
+          end
+          6'd24 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[48];
+              sbpsmc_start <= add_one_in[49];
+              inv_add_start <= add_two_in[48];
+              inv_sbpsmc_start <= add_two_in[49];
+
+              //RND - KEY4
+              rnd_num <= rnd_num + 5'd2;
+
+              //XOR - RND3
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd25;
+            end
+          end
+          //Round 2-3 operations end here and Round 4 key generation starts here
+          6'd25 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[50];
+              sbpsmc_start <= add_one_in[51];
+              inv_add_start <= add_two_in[50];
+              inv_sbpsmc_start <= add_two_in[51];
+
+              round_out <= m2add_out;
+              //ADD - KEY4
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd26;
+            end
+          end
+          6'd26 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[52];
+              sbpsmc_start <= add_one_in[53];
+              inv_add_start <= add_two_in[52];
+              inv_sbpsmc_start <= add_two_in[53];
+
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY4
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd27;
+            end
+          end
+          6'd27 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[54];
+              xor_start <= add_one_in[55];
+              inv_add_start <= add_two_in[54];
+              inv_sbpsmc_start <= add_two_in[55];
+
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd28;
+            end
+          end
+          6'd28 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[56];
+              sbpsmc_start <= add_one_in[57];
+              inv_add_start <= add_two_in[56];
+              inv_sbpsmc_start <= add_two_in[57];
+
+              //XOR - KEY4
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd29;
+            end
+          end
+          6'd29 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[58];
+              xor_start <= add_one_in[59];
+              inv_add_start <= add_two_in[58];
+              inv_sbpsmc_start <= add_two_in[59];
+
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd30;
+            end
+          end
+          6'd30 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[60];
+              sbpsmc_start <= add_one_in[61];
+              inv_add_start <= add_two_in[60];
+              inv_sbpsmc_start <= add_two_in[61];
+
+              //ADD - KEY4
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd31;
+            end
+          end
+          //Round 4 key generation ends here and Round 4-5 operations start here
+          6'd31 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[62];
+              xor_start <= add_one_in[63];
+              inv_add_start <= add_two_in[62];
+              inv_sbpsmc_start <= add_two_in[63];
+
+              tmv_key <= m2p64add_out;
+
+              //SPLT - RND4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 6'd32;
+            end
+          end
+          6'd32 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[64];
+              sbpsmc_start <= add_one_in[65];
+              inv_add_start <= add_two_in[64];
+              inv_sbpsmc_start <= add_two_in[65];
+
+              //XOR - RND4
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd33;
+            end
+          end
+          6'd33 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[66];
+              xor_start <= add_one_in[67];
+              inv_add_start <= add_two_in[66];
+              inv_sbpsmc_start <= add_two_in[67];
+
+              //SPLT -RND5
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd34;
+            end
+          end
+          6'd34 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[68];
+              sbpsmc_start <= add_one_in[69];
+              inv_add_start <= add_two_in[68];
+              inv_sbpsmc_start <= add_two_in[69];
+
+              //RND - KEY6
+              rnd_num <= rnd_num + 5'd2;
+
+              //XOR - RND5
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd35;
+            end
+          end
+          //Round 4-5 operations end here and Round 6 key generation starts here
+          6'd35 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[70];
+              sbpsmc_start <= add_one_in[71];
+              inv_add_start <= add_two_in[70];
+              inv_sbpsmc_start <= add_two_in[71];
+
+              round_out <= m2add_out;
+              //ADD - KEY6
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd36;
+            end
+          end
+          6'd36 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[72];
+              sbpsmc_start <= add_one_in[73];
+              inv_add_start <= add_two_in[72];
+              inv_sbpsmc_start <= add_two_in[73];
+
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY6
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd37;
+            end
+          end
+          6'd37 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[74];
+              xor_start <= add_one_in[75];
+              inv_add_start <= add_two_in[74];
+              inv_sbpsmc_start <= add_two_in[75];
+
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd38;
+            end
+          end
+          6'd38 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[76];
+              sbpsmc_start <= add_one_in[77];
+              inv_add_start <= add_two_in[76];
+              inv_sbpsmc_start <= add_two_in[77];
+
+              //XOR - KEY6
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd39;
+            end
+          end
+          6'd39 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[78];
+              xor_start <= add_one_in[79];
+              inv_add_start <= add_two_in[78];
+              inv_sbpsmc_start <= add_two_in[79];
+
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd40;
+            end
+          end
+          6'd40 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[80];
+              sbpsmc_start <= add_one_in[81];
+              inv_add_start <= add_two_in[80];
+              inv_sbpsmc_start <= add_two_in[81];
+
+              //ADD - KEY6
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd41;
+            end
+          end
+          //Round 6 key generation ends here and Round 6-7 operations start here
+          6'd41 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[82];
+              xor_start <= add_one_in[83];
+              inv_add_start <= add_two_in[82];
+              inv_sbpsmc_start <= add_two_in[83];
+
+              tmv_key <= m2p64add_out;
+
+              //SPLT - RND6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 6'd42;
+            end
+          end
+          6'd42 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[84];
+              sbpsmc_start <= add_one_in[85];
+              inv_add_start <= add_two_in[84];
+              inv_sbpsmc_start <= add_two_in[85];
+
+              //XOR - RND6
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd43;
+            end
+          end
+          6'd43 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[86];
+              xor_start <= add_one_in[87];
+              inv_add_start <= add_two_in[86];
+              inv_sbpsmc_start <= add_two_in[87];
+
+              //SPLT -RND7
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd44;
+            end
+          end
+          6'd44 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[88];
+              sbpsmc_start <= add_one_in[89];
+              inv_add_start <= add_two_in[88];
+              inv_sbpsmc_start <= add_two_in[89];
+
+              //RND - KEY8
+              rnd_num <= rnd_num + 5'd2;
+
+              //XOR - RND7
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd45;
+            end
+          end
+          //Round 6-7 operations end here and Round 8 key generation starts here
+          6'd45 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[90];
+              sbpsmc_start <= add_one_in[91];
+              inv_add_start <= add_two_in[90];
+              inv_sbpsmc_start <= add_two_in[91];
+
+              round_out <= m2add_out;
+              //ADD - KEY8
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd46;
+            end
+          end
+          6'd46 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[92];
+              sbpsmc_start <= add_one_in[93];
+              inv_add_start <= add_two_in[92];
+              inv_sbpsmc_start <= add_two_in[93];
+
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY8
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd47;
+            end
+          end
+          6'd47 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[94];
+              xor_start <= add_one_in[95];
+              inv_add_start <= add_two_in[94];
+              inv_sbpsmc_start <= add_two_in[95];
+
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd48;
+            end
+          end
+          6'd48 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[96];
+              sbpsmc_start <= add_one_in[97];
+              inv_add_start <= add_two_in[96];
+              inv_sbpsmc_start <= add_two_in[97];
+
+              //XOR - KEY8
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd49;
+            end
+          end
+          6'd49 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[98];
+              xor_start <= add_one_in[99];
+              inv_add_start <= add_two_in[98];
+              inv_sbpsmc_start <= add_two_in[99];
+
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd50;
+            end
+          end
+          6'd50 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[100];
+              sbpsmc_start <= add_one_in[101];
+              inv_add_start <= add_two_in[100];
+              inv_sbpsmc_start <= add_two_in[101];
+
+              //ADD - KEY8
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd51;
+            end
+          end
+          //Round 8 key generation ends here and Round 8-9 operations start here
+          6'd51 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[102];
+              xor_start <= add_one_in[103];
+              inv_add_start <= add_two_in[102];
+              inv_sbpsmc_start <= add_two_in[103];
+
+              tmv_key <= m2p64add_out;
+
+              //SPLT - RND8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 6'd52;
+            end
+          end
+          6'd52 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[104];
+              sbpsmc_start <= add_one_in[105];
+              inv_add_start <= add_two_in[104];
+              inv_sbpsmc_start <= add_two_in[105];
+
+              //XOR - RND8
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd53;
+            end
+          end
+          6'd53 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[106];
+              xor_start <= add_one_in[107];
+              inv_add_start <= add_two_in[106];
+              inv_sbpsmc_start <= add_two_in[107];
+
+              //SPLT -RND9
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd54;
+            end
+          end
+          6'd54 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[108];
+              sbpsmc_start <= add_one_in[109];
+              inv_add_start <= add_two_in[108];
+              inv_sbpsmc_start <= add_two_in[109];
+
+              //RND - KEY10
+              rnd_num <= rnd_num + 5'd2;
+
+              //XOR - RND9
+              xor_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd55;
+            end
+          end
+          //Round 8-9 operations end here and Round 10 key generation starts here
+          6'd55 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[110];
+              sbpsmc_start <= add_one_in[111];
+              inv_add_start <= add_two_in[110];
+              inv_sbpsmc_start <= add_two_in[111];
+
+              round_out <= m2add_out;
+              //ADD - KEY10
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              if (rnd_cnt == 5'd10) begin
+                curr_state <= 6'd56;
+              end
+              else if (rnd_cnt == 5'd14) begin
+                if (rnd_num  == 5'd14) begin
+                  curr_state <= 6'd56;
+                end
+                else begin
+                  curr_state <= 6'd36;
+                end
+              end
+              else begin
+                if (rnd_num  == 5'd18) begin
+                  curr_state <= 6'd56;
+                end
+                else begin
+                  curr_state <= 6'd16;
+                end
+              end
+            end
+          end
+          6'd56 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[112];
+              sbpsmc_start <= add_one_in[113];
+              inv_add_start <= add_two_in[112];
+              inv_sbpsmc_start <= add_two_in[113];
+
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY10
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd57;
+            end
+          end
+          6'd57 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[114];
+              xor_start <= add_one_in[115];
+              inv_add_start <= add_two_in[114];
+              inv_sbpsmc_start <= add_two_in[115];
+
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd58;
+            end
+          end
+          6'd58 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[116];
+              sbpsmc_start <= add_one_in[117];
+              inv_add_start <= add_two_in[116];
+              inv_sbpsmc_start <= add_two_in[117];
+
+              //XOR - KEY10
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd59;
+            end
+          end
+          6'd59 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[118];
+              xor_start <= add_one_in[119];
+              inv_add_start <= add_two_in[118];
+              inv_sbpsmc_start <= add_two_in[119];
+
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd60;
+            end
+          end
+          6'd60 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[120];
+              sbpsmc_start <= add_one_in[121];
+              inv_add_start <= add_two_in[120];
+              inv_sbpsmc_start <= add_two_in[121];
+
+              //ADD - KEY10
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd61;
+            end
+          end
+          //Round 10 key generation ends here and Round 10 operation starts here
+          6'd61 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[122];
+              xor_start <= add_one_in[123];
+              inv_add_start <= add_two_in[122];
+              inv_sbpsmc_start <= add_two_in[123];
+
+              tmv_key <= m2p64add_out;
+
+              //SPLT - RND10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 6'd62;
+            end
+          end
+          6'd62 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[124];
+              sbpsmc_start <= add_one_in[125];
+              inv_add_start <= add_two_in[124];
+              inv_sbpsmc_start <= add_two_in[125];
+
+              //ADD - RND10
+              add_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd63;
+            end
+          end
+          6'd63 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= 1'b0;
+              xor_start <= 1'b0;
+              sbpsmc_start <= 1'b0;
+              inv_add_start <= 1'b0;
+              inv_sbpsmc_start <= 1'b0;
+
+              round_out <= m2p64add_out;
+              reg_block_rdy <= 1'b1;
+
+              curr_state <= 6'd0;
+            end
+          end
+          default : begin
+            rnd_num <= 5'd0;
+            add_start <= 1'b0;
+            xor_start <= 1'b0;
+            curr_state <= 6'd0;
+            sbpsmc_start <= 1'b0;
+            reg_block_rdy <= 1'b0;
+            inv_add_start <= 1'b0;
+            inv_sbpsmc_start <= 1'b0;
+            tmv_key <= {BLOCK_SIZE{1'b0}};
+            int_key <= {BLOCK_SIZE{1'b0}};
+            round_out <= {BLOCK_SIZE{1'b0}};
+            add_one_in <= {BLOCK_SIZE{1'b0}};
+            add_two_in <= {BLOCK_SIZE{1'b0}};
+          end
+        endcase
+      end
+      //Decryption
+      else begin
+        case (curr_state)
+          //Intermediate key generattion starts here
+          6'd0 : begin
+            //SOME OPERATIONS
+            xor_start <= add_one_in[0];
+            sbpsmc_start <= add_one_in[1];
+            inv_add_start <= add_two_in[0];
+            inv_sbpsmc_start <= add_two_in[1];
+
+            //ADD - INTKEY
+            add_start <= 1'b1;
+            add_one_in <= int_key_in;
+            add_two_in <= key_alfa;
+
+            curr_state <= 6'd1;
+          end
+          6'd1 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[2];
+              xor_start <= add_one_in[3];
+              inv_add_start <= add_two_in[2];
+              inv_sbpsmc_start <= add_two_in[3];
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd2;
+            end
+          end
+          6'd2 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[4];
+              sbpsmc_start <= add_one_in[5];
+              inv_add_start <= add_two_in[4];
+              inv_sbpsmc_start <= add_two_in[5];
+
+              //XOR - INTKEY
+              xor_start <= 1'b1;
+              add_one_in <= key_omega;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd3;
+            end
+          end
+          6'd3 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[6];
+              xor_start <= add_one_in[7];
+              inv_add_start <= add_two_in[6];
+              inv_sbpsmc_start <= add_two_in[7];
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+              
+              curr_state <= 6'd4;
+            end
+          end
+          6'd4 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[8];
+              sbpsmc_start <= add_one_in[9];
+              inv_add_start <= add_two_in[8];
+              inv_sbpsmc_start <= add_two_in[9];
+
+              //ADD - INTKEY
+              add_start <= 1'b1;
+              add_one_in <= key_alfa;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd5;
+            end
+          end
+          6'd5 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[10];
+              xor_start <= add_one_in[11];
+              inv_add_start <= add_two_in[10];
+              inv_sbpsmc_start <= add_two_in[11];
+
+              //RND - KEY10
+              rnd_num <= rnd_cnt;
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+              
+              curr_state <= 6'd6;
+            end
+          end
+          //Intermediate key generation ends and round 10 key generation starts here
+          6'd6 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[12];
+              sbpsmc_start <= add_one_in[13];
+              inv_add_start <= add_two_in[12];
+              inv_sbpsmc_start <= add_two_in[13];
+
+              int_key <= sbpsmc_out;
+
+              //ADD - KEY10
+              add_start <= 1'b1;
+              add_one_in <= sbpsmc_out;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd7;
+            end
+          end
+          6'd7 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[14];
+              sbpsmc_start <= add_one_in[15];
+              inv_add_start <= add_two_in[14];
+              inv_sbpsmc_start <= add_two_in[15];
+
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY10
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd8;
+            end
+          end
+          6'd8 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[16];
+              xor_start <= add_one_in[17];
+              inv_add_start <= add_two_in[16];
+              inv_sbpsmc_start <= add_two_in[17];
+
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd9;
+            end
+          end
+          6'd9 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[18];
+              sbpsmc_start <= add_one_in[19];
+              inv_add_start <= add_two_in[18];
+              inv_sbpsmc_start <= add_two_in[19];
+
+              //XOR - KEY10
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd10;
+            end
+          end
+          6'd10 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[20];
+              xor_start <= add_one_in[21];
+              inv_add_start <= add_two_in[20];
+              inv_sbpsmc_start <= add_two_in[21];
+
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd11;
+            end
+          end
+          6'd11 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[22];
+              sbpsmc_start <= add_one_in[23];
+              inv_add_start <= add_two_in[22];
+              inv_sbpsmc_start <= add_two_in[23];
+
+              //ADD - KEY10
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd12;
+            end
+          end
+          //Round 10 key generation ends here and Round 10 operations start here
+          6'd12 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              xor_start <= add_one_in[24];
+              sbpsmc_start <= add_one_in[25];
+              add_start <= add_two_in[24];
+              inv_sbpsmc_start <= add_two_in[25];
+
+              tmv_key <= m2p64add_out;
+              //SUB - RND10
+              inv_add_start <= 1'b1;
+              add_one_in <= block_in;
+              add_two_in <= m2p64add_out;
+
+              curr_state <= 6'd13;
+            end
+          end
+          6'd13 : begin
+            if (m2p64sub_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[26];
+              xor_start <= add_one_in[27];
+              inv_add_start <= add_two_in[26];
+              sbpsmc_start <= add_two_in[27];
+
+              //RND - KEY8
+              rnd_num <= rnd_num - 5'd2;
+              //INV SPLT - RND10
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64sub_out;
+
+              curr_state <= 6'd14;
+            end
+          end
+          //Round 10 operations end here and Round 8 key operations start here
+          6'd14 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[28];
+              xor_start <= add_one_in[29];
+              inv_add_start <= add_two_in[28];
+              inv_sbpsmc_start <= add_two_in[29];
+
+              round_out <= inv_sbpsmc_out;
+              //ADD - KEY8
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd15;
+            end
+          end
+          6'd15 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[30];
+              xor_start <= add_one_in[31];
+              inv_add_start <= add_two_in[30];
+              inv_sbpsmc_start <= add_two_in[31];
+
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY8
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd16;
+            end
+          end
+          6'd16 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[32];
+              xor_start <= add_one_in[33];
+              inv_add_start <= add_two_in[32];
+              inv_sbpsmc_start <= add_two_in[33];
+
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd17;
+            end
+          end
+          6'd17 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[34];
+              sbpsmc_start <= add_one_in[35];
+              inv_add_start <= add_two_in[34];
+              inv_sbpsmc_start <= add_two_in[35];
+
+              //XOR - KEY8
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd18;
+            end
+          end
+          6'd18 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[36];
+              xor_start <= add_one_in[37];
+              inv_add_start <= add_two_in[36];
+              inv_sbpsmc_start <= add_two_in[37];
+
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd19;
+            end
+          end
+          6'd19 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[38];
+              xor_start <= add_one_in[39];
+              inv_add_start <= add_two_in[38];
+              inv_sbpsmc_start <= add_two_in[39];
+
+              //ADD - KEY8
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd20;
+            end
+          end
+          //Round 8 key generation ends here and Round 9-8 operations start here
+          6'd20 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[40];
+              sbpsmc_start <= add_one_in[41];
+              inv_add_start <= add_two_in[40];
+              inv_sbpsmc_start <= add_two_in[41];
+
+              tmv_key <= m2p64add_out;
+              //XOR - RND9
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {m2p64add_out[BLOCK_SIZE-1-the_lr:0], m2p64add_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd21;
+            end
+          end
+          6'd21 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[42];
+              xor_start <= add_one_in[43];
+              inv_add_start <= add_two_in[42];
+              sbpsmc_start <= add_two_in[43];
+
+              //INV SPLT - RND9
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd22;
+            end
+          end
+          6'd22 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[44];
+              sbpsmc_start <= add_one_in[45];
+              inv_add_start <= add_two_in[44];
+              inv_sbpsmc_start <= add_two_in[45];
+
+              //XOR - RND8
+              xor_start <= 1'b1;
+              add_one_in <= inv_sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd23;
+            end
+          end
+          6'd23 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[46];
+              xor_start <= add_one_in[47];
+              inv_add_start <= add_two_in[46];
+              sbpsmc_start <= add_two_in[47];
+
+              //RND - KEY6
+              rnd_num <= rnd_num - 5'd2;
+              //INV SPLT - RND8
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd24;
+            end
+          end
+          //Round 9-8 operations end here and Round 6 key operations start here
+          6'd24 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[48];
+              xor_start <= add_one_in[49];
+              inv_add_start <= add_two_in[48];
+              inv_sbpsmc_start <= add_two_in[49];
+
+              round_out <= inv_sbpsmc_out;
+              //ADD - KEY6
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd25;
+            end
+          end
+          6'd25 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[50];
+              xor_start <= add_one_in[51];
+              inv_add_start <= add_two_in[50];
+              inv_sbpsmc_start <= add_two_in[51];
+
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY6
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd26;
+            end
+          end
+          6'd26 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[52];
+              xor_start <= add_one_in[53];
+              inv_add_start <= add_two_in[52];
+              inv_sbpsmc_start <= add_two_in[53];
+
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd27;
+            end
+          end
+          6'd27 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[54];
+              sbpsmc_start <= add_one_in[55];
+              inv_add_start <= add_two_in[54];
+              inv_sbpsmc_start <= add_two_in[55];
+
+              //XOR - KEY6
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd28;
+            end
+          end
+          6'd28 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[56];
+              xor_start <= add_one_in[57];
+              inv_add_start <= add_two_in[56];
+              inv_sbpsmc_start <= add_two_in[57];
+
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd29;
+            end
+          end
+          6'd29 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[58];
+              xor_start <= add_one_in[59];
+              inv_add_start <= add_two_in[58];
+              inv_sbpsmc_start <= add_two_in[59];
+
+              //ADD - KEY6
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd30;
+            end
+          end
+          //Round 6 key generation ends here and Round 7-6 operations start here
+          6'd30 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[60];
+              sbpsmc_start <= add_one_in[61];
+              inv_add_start <= add_two_in[60];
+              inv_sbpsmc_start <= add_two_in[61];
+
+              tmv_key <= m2p64add_out;
+
+              //XOR - RND7
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {m2p64add_out[BLOCK_SIZE-1-the_lr:0], m2p64add_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd31;
+            end
+          end
+          6'd31 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[62];
+              xor_start <= add_one_in[63];
+              inv_add_start <= add_two_in[62];
+              sbpsmc_start <= add_two_in[63];
+
+              //INV SPLT - RND7
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd32;
+            end
+          end
+          6'd32 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[64];
+              sbpsmc_start <= add_one_in[65];
+              inv_add_start <= add_two_in[64];
+              inv_sbpsmc_start <= add_two_in[65];
+
+              //XOR - RND6
+              xor_start <= 1'b1;
+              add_one_in <= inv_sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd33;
+            end
+          end
+          6'd33 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[66];
+              xor_start <= add_one_in[67];
+              inv_add_start <= add_two_in[66];
+              sbpsmc_start <= add_two_in[67];
+
+              //RND - KEY4
+              rnd_num <= rnd_num - 5'd2;
+              //INV SPLT - RND6
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd34;
+            end
+          end
+          //Round 7-6 operations end here and Round 4 key operations start here
+          6'd34 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[68];
+              xor_start <= add_one_in[69];
+              inv_add_start <= add_two_in[68];
+              inv_sbpsmc_start <= add_two_in[69];
+
+              round_out <= inv_sbpsmc_out;
+              //ADD - KEY4
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd35;
+            end
+          end
+          6'd35 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[70];
+              xor_start <= add_one_in[71];
+              inv_add_start <= add_two_in[70];
+              inv_sbpsmc_start <= add_two_in[71];
+
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY4
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd36;
+            end
+          end
+          6'd36 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[72];
+              xor_start <= add_one_in[73];
+              inv_add_start <= add_two_in[72];
+              inv_sbpsmc_start <= add_two_in[73];
+
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd37;
+            end
+          end
+          6'd37 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[74];
+              sbpsmc_start <= add_one_in[75];
+              inv_add_start <= add_two_in[74];
+              inv_sbpsmc_start <= add_two_in[75];
+
+              //XOR - KEY4
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd38;
+            end
+          end
+          6'd38 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[76];
+              xor_start <= add_one_in[77];
+              inv_add_start <= add_two_in[76];
+              inv_sbpsmc_start <= add_two_in[77];
+
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd39;
+            end
+          end
+          6'd39 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[78];
+              xor_start <= add_one_in[79];
+              inv_add_start <= add_two_in[78];
+              inv_sbpsmc_start <= add_two_in[79];
+
+              //ADD - KEY4
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd40;
+            end
+          end
+          //Round 4 key generation ends here and Round 5-4 operations start here
+          6'd40 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[80];
+              sbpsmc_start <= add_one_in[81];
+              inv_add_start <= add_two_in[80];
+              inv_sbpsmc_start <= add_two_in[81];
+
+              tmv_key <= m2p64add_out;
+
+              //XOR - RND5
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {m2p64add_out[BLOCK_SIZE-1-the_lr:0], m2p64add_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd41;
+            end
+          end
+          6'd41 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[82];
+              xor_start <= add_one_in[83];
+              inv_add_start <= add_two_in[82];
+              sbpsmc_start <= add_two_in[83];
+
+              //INV SPLT - RND5
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd42;
+            end
+          end
+          6'd42 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[84];
+              sbpsmc_start <= add_one_in[85];
+              inv_add_start <= add_two_in[84];
+              inv_sbpsmc_start <= add_two_in[85];
+
+              //XOR - RND4
+              xor_start <= 1'b1;
+              add_one_in <= inv_sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd43;
+            end
+          end
+          6'd43 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[86];
+              xor_start <= add_one_in[87];
+              inv_add_start <= add_two_in[86];
+              sbpsmc_start <= add_two_in[87];
+
+              //RND - KEY2
+              rnd_num <= rnd_num - 5'd2;
+              //INV SPLT - RND4
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd44;
+            end
+          end
+          //Round 5-4 operations end here and Round 2 key operations start here
+          6'd44 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[88];
+              xor_start <= add_one_in[89];
+              inv_add_start <= add_two_in[88];
+              inv_sbpsmc_start <= add_two_in[89];
+
+              round_out <= inv_sbpsmc_out;
+              //ADD - KEY2
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 6'd45;
+            end
+          end
+          6'd45 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[90];
+              xor_start <= add_one_in[91];
+              inv_add_start <= add_two_in[90];
+              inv_sbpsmc_start <= add_two_in[91];
+
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY2
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd46;
+            end
+          end
+          6'd46 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[92];
+              xor_start <= add_one_in[93];
+              inv_add_start <= add_two_in[92];
+              inv_sbpsmc_start <= add_two_in[93];
+
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd47;
+            end
+          end
+          6'd47 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[94];
+              sbpsmc_start <= add_one_in[95];
+              inv_add_start <= add_two_in[94];
+              inv_sbpsmc_start <= add_two_in[95];
+
+              //XOR - KEY2
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd48;
+            end
+          end
+          6'd48 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[96];
+              xor_start <= add_one_in[97];
+              inv_add_start <= add_two_in[96];
+              inv_sbpsmc_start <= add_two_in[97];
+
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd49;
+            end
+          end
+          6'd49 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[98];
+              xor_start <= add_one_in[99];
+              inv_add_start <= add_two_in[98];
+              inv_sbpsmc_start <= add_two_in[99];
+
+              //ADD - KEY2
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd50;
+            end
+          end
+          //Round 2 key generation ends here and Round 3-2 operations start here
+          6'd50 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[100];
+              sbpsmc_start <= add_one_in[101];
+              inv_add_start <= add_two_in[100];
+              inv_sbpsmc_start <= add_two_in[101];
+
+              tmv_key <= m2p64add_out;
+              //XOR - RND3
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {m2p64add_out[BLOCK_SIZE-1-the_lr:0], m2p64add_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd51;
+            end
+          end
+          6'd51 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[102];
+              xor_start <= add_one_in[103];
+              inv_add_start <= add_two_in[102];
+              sbpsmc_start <= add_two_in[103];
+
+              //INV SPLT - RND3
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd52;
+            end
+          end
+          6'd52 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[104];
+              sbpsmc_start <= add_one_in[105];
+              inv_add_start <= add_two_in[104];
+              inv_sbpsmc_start <= add_two_in[105];
+
+              //XOR - RND2
+              xor_start <= 1'b1;
+              add_one_in <= inv_sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd53;
+            end
+          end
+          6'd53 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[106];
+              xor_start <= add_one_in[107];
+              inv_add_start <= add_two_in[106];
+              sbpsmc_start <= add_two_in[107];
+
+              //RND - KEY0
+              rnd_num <= rnd_num - 5'd2;
+              //INV SPLT - RND2
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd54;
+            end
+          end
+          //Round 3-2 operations end here and Round 0 key operations start here
+          6'd54 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[108];
+              xor_start <= add_one_in[109];
+              inv_add_start <= add_two_in[108];
+              inv_sbpsmc_start <= add_two_in[109];
+
+              round_out <= inv_sbpsmc_out;
+              //ADD - KEY0
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              if (rnd_cnt == 5'd10) begin
+                curr_state <= 6'd55;
+              end
+              else if (rnd_cnt == 5'd14) begin
+                if (rnd_num == 5'd0) begin
+                  curr_state <= 6'd55;
+                end
+                else begin
+                  curr_state <= 6'd35;
+                end
+              end
+              else begin
+                if (rnd_num == 5'd0) begin
+                  curr_state <= 6'd55;
+                end
+                else begin
+                  curr_state <= 6'd15;
+                end
+              end
+            end
+          end
+          6'd55 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[110];
+              xor_start <= add_one_in[111];
+              inv_add_start <= add_two_in[110];
+              inv_sbpsmc_start <= add_two_in[111];
+
+              tmv_key <= m2p64add_out;
+
+              //ADD - KEY0
+              add_one_in <= m2p64add_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 6'd56;
+            end
+          end
+          6'd56 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[112];
+              xor_start <= add_one_in[113];
+              inv_add_start <= add_two_in[112];
+              inv_sbpsmc_start <= add_two_in[113];
+
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2p64add_out;
+
+              curr_state <= 6'd57;
+            end
+          end
+          6'd57 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[114];
+              sbpsmc_start <= add_one_in[115];
+              inv_add_start <= add_two_in[114];
+              inv_sbpsmc_start <= add_two_in[115];
+
+              //XOR - KEY0
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd58;
+            end
+          end
+          6'd58 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[116];
+              xor_start <= add_one_in[117];
+              inv_add_start <= add_two_in[116];
+              inv_sbpsmc_start <= add_two_in[117];
+
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd59;
+            end
+          end
+          6'd59 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[118];
+              xor_start <= add_one_in[119];
+              inv_add_start <= add_two_in[118];
+              inv_sbpsmc_start <= add_two_in[119];
+
+              //ADD - KEY0
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= sbpsmc_out;
+
+              curr_state <= 6'd60;
+            end
+          end
+          //Round 0 key generation ends here and Round 1-0 operations start here
+          6'd60 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[120];
+              sbpsmc_start <= add_one_in[121];
+              inv_add_start <= add_two_in[120];
+              inv_sbpsmc_start <= add_two_in[121];
+
+              tmv_key <= m2p64add_out;
+
+              //XOR - RND1
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {m2p64add_out[BLOCK_SIZE-1-the_lr:0], m2p64add_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 6'd61;
+            end
+          end
+          6'd61 : begin
+            if (m2add_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              add_start <= add_one_in[122];
+              xor_start <= add_one_in[123];
+              inv_add_start <= add_two_in[122];
+              sbpsmc_start <= add_two_in[123];
+
+              //INV SPLT - RND1
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= m2add_out;
+
+              curr_state <= 6'd62;
+            end
+          end
+          6'd62 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[124];
+              xor_start <= add_one_in[125];
+              add_start <= add_two_in[124];
+              inv_sbpsmc_start <= add_two_in[125];
+
+              //SUB - RND0
+              inv_add_start <= 1'b1;
+              add_one_in <= inv_sbpsmc_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 6'd63;
+            end
+          end
+          6'd63 : begin
+            if (m2p64sub_rdy == 1'b1) begin
+              round_out <= m2p64sub_out;
+              reg_block_rdy <= 1'b1;
+
+              //SUB - RND0
+              add_start <= 1'b0;
+              xor_start <= 1'b0;
+              sbpsmc_start <= 1'b0;
+              inv_add_start <= 1'b0;
+              inv_sbpsmc_start <= 1'b0;
+
+              curr_state <= 6'd0;
+            end
+          end
+        default : begin
+          rnd_num <= 5'd0;
+          add_start <= 1'b0;
+          xor_start <= 1'b0;
+          curr_state <= 6'd0;
+          sbpsmc_start <= 1'b0;
+          reg_block_rdy <= 1'b0;
+          inv_add_start <= 1'b0;
+          inv_sbpsmc_start <= 1'b0;
+          tmv_key <= {BLOCK_SIZE{1'b0}};
+          int_key <= {BLOCK_SIZE{1'b0}};
+          round_out <= {BLOCK_SIZE{1'b0}};
+          add_one_in <= {BLOCK_SIZE{1'b0}};
+          add_two_in <= {BLOCK_SIZE{1'b0}};
+        end
+        endcase
+      end
+    end
+  end
+end
+
+//Pseudo-Random Number Generator
+`ifdef XORSHIFT
+  //XORSHIFT
+  kalyna_xorshift64 xs_ins (.clk(clk), .rst(rst), .start(reg_encdec_start), .seed(block_in[63:0]), .xs_out(prng_out));
+`elsif LFSR
+  //LFSR
+  kalyna_lfsr64 lfsr_ins (.clk(clk), .rst(rst), .start(reg_encdec_start), .seed(block_in[63:0]), .lfsr_out(prng_out));
+`endif
+
+//First-Order Masking
+//Additions
+kalyna_mod2_add_serial64b_fom #(.BLOCK_SIZE(BLOCK_SIZE)) m2a_ins (.clk(clk), .rst(rst), .m2add_start(xor_start), .m2add_in_one(add_one_in), .m2add_in_two(add_two_in), .lfsr_in(prng_out), .m2add_out(m2add_out), .m2add_rdy(m2add_rdy));
+kalyna_mod2p64_add_serial64b_fom #(.BLOCK_SIZE(BLOCK_SIZE)) m2p64a_ins (.clk(clk), .rst(rst), .m2p64add_start(add_start), .m2p64add_in_one(add_one_in), .m2p64add_in_two(add_two_in), .lfsr_in(prng_out), .m2p64add_out(m2p64add_out), .m2p64add_rdy(m2p64add_rdy));
+//Substitution Permutation Mix-Column
+kalyna_sbpsmc_serial64b_fom #(.BLOCK_SIZE(BLOCK_SIZE)) sbpsmc64b_ins (.clk(clk), .rst(rst), .sbpsmc_start(sbpsmc_start), .sbpsmc_in(add_one_in), .lfsr_in(prng_out), .sbpsmc_out(sbpsmc_out), .sbpsmc_rdy(sbpsmc_rdy));
+//Inverse Addition
+kalyna_inv_mod2p64_add_serial64b_fom #(.BLOCK_SIZE(BLOCK_SIZE)) inv_m2p64a_ins (.clk(clk), .rst(rst), .m2p64add_start(inv_add_start), .m2p64add_in_one(add_one_in), .m2p64add_in_two(add_two_in), .lfsr_in(prng_out), .m2p64add_out(m2p64sub_out), .m2p64add_rdy(m2p64sub_rdy));
+//Inverse Substitution Permutation Mix-Column
+kalyna_inv_sbpsmc_serial64b_fom #(.BLOCK_SIZE(BLOCK_SIZE)) inv_sbpsmc64b_ins (.clk(clk), .rst(rst), .sbpsmc_start(inv_sbpsmc_start), .sbpsmc_in(add_one_in), .lfsr_in(prng_out), .sbpsmc_out(inv_sbpsmc_out), .sbpsmc_rdy(inv_sbpsmc_rdy));
+
+//Block Outputs
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    block_rdy <= 1'b0;
+    block_out <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (reg_encdec_start == 1'b0) begin
+      block_rdy <= 1'b0;
+      block_out <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      if (reg_block_rdy == 1'b1) begin
+        block_rdy <= 1'b1;
+        block_out <= round_out;
+      end
+    end
+  end
+end
+
+endmodule
+
+//KALYNA ENCRYPTION and DECRYPTION BLOCK - SERIAL - ONE 64-bit OPERATION in ONE CLOCK CYCLE - First-Order Masking + Hiding + Temporal Duplication
+module kalyna_encdec_block_serial64b_oboc_fomhidtemdup #(parameter BLOCK_SIZE = 128, parameter KEY_LENGTH = 128) (clk, rst, start, mode, block_in, key_in, block_out, block_rdy);
+
+input clk, rst, start, mode;
+input [BLOCK_SIZE-1:0] block_in;
+input [KEY_LENGTH-1:0] key_in;
+output reg [BLOCK_SIZE-1:0] block_out;
+output reg block_rdy;
+
+//Local parameters
+localparam bs_m8 = BLOCK_SIZE - 8;
+localparam bs_d16 = BLOCK_SIZE/16;
+localparam the_lr = (BLOCK_SIZE/4+24);
+localparam rnd_cnt = (BLOCK_SIZE == KEY_LENGTH && BLOCK_SIZE == 128) ? 5'd10 : (BLOCK_SIZE == KEY_LENGTH && BLOCK_SIZE == 256) ? 5'd14 : (BLOCK_SIZE == KEY_LENGTH && BLOCK_SIZE == 512) ? 5'd18 : (BLOCK_SIZE != KEY_LENGTH && BLOCK_SIZE == 128) ? 5'd14 : 5'd18;
+
+//Variables
+reg [4:0] rnd_num;
+reg [KEY_LENGTH-1:0] trans_in;
+reg [6:0] curr_state, pre_curr_state;
+reg xor_start, add_start, sbpsmc_start, inv_add_start, inv_sbpsmc_start, reg_block_rdy, reg_encdec_start, reg_flt_inj, reg_flt_state;
+reg [BLOCK_SIZE-1:0] key_alfa, key_omega, add_one_in, add_two_in, dup_one_out, dup_two_out, int_key, shft_tmv, trans_key_in, tmv_key, round_out;
+wire [63:0] prng_out;
+wire [BLOCK_SIZE-1:0] int_key_in, the_tmv;
+wire [7:0] the_const = (BLOCK_SIZE+KEY_LENGTH)/64 + 1;
+wire m2add_rdy, m2p64add_rdy, sbpsmc_rdy, m2p64sub_rdy, inv_sbpsmc_rdy, flt_state;
+wire [BLOCK_SIZE-1:0] m2add_out, m2p64add_out, sbpsmc_out, m2p64sub_out, inv_sbpsmc_out;
+
+//Input to the intermediate key transformation
+assign int_key_in = {the_const, {bs_m8{1'b0}}};
+
+//Alfa and Omega Keys for the intermediate key transformation
+always @ (*) begin
+  if (BLOCK_SIZE == KEY_LENGTH) begin
+    key_alfa = key_in;
+    key_omega = key_in;
+  end
+  else begin
+    key_alfa = key_in[KEY_LENGTH-1:KEY_LENGTH/2];
+    key_omega = key_in[KEY_LENGTH/2-1:0];
+  end
+end
+
+//Generation of the TMV signal and its shifted version
+assign the_tmv= {bs_d16{16'h0100}};
+always @ (*) begin
+  case (rnd_num)
+    5'd0    : shft_tmv = the_tmv;
+    5'd2    : shft_tmv = {the_tmv[BLOCK_SIZE-2:0],  1'd0};
+    5'd4    : shft_tmv = {the_tmv[BLOCK_SIZE-3:0],  2'd0};
+    5'd6    : shft_tmv = {the_tmv[BLOCK_SIZE-4:0],  3'd0};
+    5'd8    : shft_tmv = {the_tmv[BLOCK_SIZE-5:0],  4'd0};
+    5'd10   : shft_tmv = {the_tmv[BLOCK_SIZE-6:0],  5'd0};
+    5'd12   : shft_tmv = {the_tmv[BLOCK_SIZE-7:0],  6'd0};
+    5'd14   : shft_tmv = {the_tmv[BLOCK_SIZE-8:0],  7'd0};
+    5'd16   : shft_tmv = {the_tmv[BLOCK_SIZE-9:0],  7'd0, 1'b1};
+    5'd18   : shft_tmv = {the_tmv[BLOCK_SIZE-10:0], 7'd0, 1'b1, 1'b0}; //Last two lines are due to the conflict between rotate and shift
+    default : shft_tmv = the_tmv;
+  endcase
+end
+
+//Generation of the input to the transformations
+always @ (*) begin
+  if (BLOCK_SIZE == KEY_LENGTH) begin
+    if (BLOCK_SIZE == 128) begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = {key_in[63:0], key_in[127:64]};
+        5'd4    : trans_in = key_in;
+        5'd6    : trans_in = {key_in[63:0], key_in[127:64]};
+        5'd8    : trans_in = key_in;
+        5'd10   : trans_in = {key_in[63:0], key_in[127:64]};
+        default : trans_in = key_in;
+      endcase
+    end
+    else if (BLOCK_SIZE == 256) begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd4    : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd6    : trans_in = {key_in[63:0],  key_in[255:64]};
+        5'd8    : trans_in = key_in;
+        5'd10   : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd12   : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd14   : trans_in = {key_in[63:0],  key_in[255:64]};
+        default : trans_in = key_in;
+      endcase
+    end
+    else begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = {key_in[447:0], key_in[511:448]};
+        5'd4    : trans_in = {key_in[383:0], key_in[511:384]};
+        5'd6    : trans_in = {key_in[319:0], key_in[511:320]};
+        5'd8    : trans_in = {key_in[255:0], key_in[511:256]};
+        5'd10   : trans_in = {key_in[191:0], key_in[511:192]};
+        5'd12   : trans_in = {key_in[127:0], key_in[511:128]};
+        5'd14   : trans_in = {key_in[63:0],  key_in[511:64]};
+        5'd16   : trans_in = key_in;
+        5'd18   : trans_in = {key_in[447:0], key_in[511:448]};
+        default : trans_in = key_in;
+      endcase
+    end
+  end
+  else begin
+    if (BLOCK_SIZE == 128) begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = key_in;
+        5'd4    : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd6    : trans_in = {key_in[191:0], key_in[255:192]};
+        5'd8    : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd10   : trans_in = {key_in[127:0], key_in[255:128]};
+        5'd12   : trans_in = {key_in[63:0],  key_in[255:64]};
+        5'd14   : trans_in = {key_in[63:0],  key_in[255:64]};
+        default : trans_in = key_in;
+      endcase
+    end
+    else begin
+      case (rnd_num) 
+        5'd0    : trans_in = key_in;
+        5'd2    : trans_in = key_in;
+        5'd4    : trans_in = {key_in[447:0], key_in[511:448]};
+        5'd6    : trans_in = {key_in[447:0], key_in[511:448]};
+        5'd8    : trans_in = {key_in[383:0], key_in[511:384]};
+        5'd10   : trans_in = {key_in[383:0], key_in[511:384]};
+        5'd12   : trans_in = {key_in[319:0], key_in[511:320]};
+        5'd14   : trans_in = {key_in[319:0], key_in[511:320]};
+        5'd16   : trans_in = {key_in[255:0], key_in[511:256]};
+        5'd18   : trans_in = {key_in[255:0], key_in[511:256]};
+        default : trans_in = key_in;
+      endcase
+    end
+  end
+end
+always @ (*) begin
+  if (BLOCK_SIZE == KEY_LENGTH) begin
+    trans_key_in = trans_in;
+  end
+  else begin
+    case (rnd_num) 
+      5'd0    : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE];
+      5'd2    : trans_key_in = trans_in[BLOCK_SIZE-1:0];
+      5'd4    : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd6    : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      5'd8    : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd10   : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      5'd12   : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd14   : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      5'd16   : trans_key_in = trans_in[KEY_LENGTH-1:KEY_LENGTH-BLOCK_SIZE]; 
+      5'd18   : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+      default : trans_key_in = trans_in[BLOCK_SIZE-1:0]; 
+    endcase
+  end
+end
+
+//The reg_encdec_start signal indicates that the encryption/decryption process is started
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    reg_encdec_start <= 1'b0;
+  end
+  else begin
+    if (block_rdy == 1'b1) begin
+      reg_encdec_start <= 1'b0;
+    end
+    else begin
+      if (reg_flt_inj == 1'b1 | reg_flt_state) begin
+        reg_encdec_start <= 1'b0;
+      end
+      else begin
+        if (start == 1'b1) begin
+          reg_encdec_start <= 1'b1;
+        end
+      end
+    end
+  end
+end
+
+//Block inputs in each state  
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    rnd_num <= 5'd0;
+    add_start <= 1'b0;
+    xor_start <= 1'b0;
+    curr_state <= 7'd0;
+    sbpsmc_start <= 1'b0;
+    reg_block_rdy <= 1'b0;
+    inv_add_start <= 1'b0;
+    inv_sbpsmc_start <= 1'b0;
+    tmv_key <= {BLOCK_SIZE{1'b0}};
+    int_key <= {BLOCK_SIZE{1'b0}};
+    round_out <= {BLOCK_SIZE{1'b0}};
+    add_one_in <= {BLOCK_SIZE{1'b0}};
+    add_two_in <= {BLOCK_SIZE{1'b0}};
+    dup_one_out <= {BLOCK_SIZE{1'b0}};
+    dup_two_out <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (reg_encdec_start == 1'b0) begin
+      rnd_num <= 5'd0;
+      add_start <= 1'b0;
+      xor_start <= 1'b0;
+      curr_state <= 7'd0;
+      sbpsmc_start <= 1'b0;
+      reg_block_rdy <= 1'b0;
+      inv_add_start <= 1'b0;
+      inv_sbpsmc_start <= 1'b0;
+      tmv_key <= {BLOCK_SIZE{1'b0}};
+      int_key <= {BLOCK_SIZE{1'b0}};
+      round_out <= {BLOCK_SIZE{1'b0}};
+      add_one_in <= {BLOCK_SIZE{1'b0}};
+      add_two_in <= {BLOCK_SIZE{1'b0}};
+      dup_one_out <= {BLOCK_SIZE{1'b0}};
+      dup_two_out <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      //Encryption
+      if (mode == 1'b0) begin
+        case (curr_state)
+          //Intermediate key generattion starts here
+          7'd0 : begin
+            //SOME OPERATIONS
+            xor_start <= add_one_in[0];
+            sbpsmc_start <= add_one_in[1];
+            inv_add_start <= add_two_in[0];
+            inv_sbpsmc_start <= add_two_in[1];
+
+            //ADD - INTKEY
+            add_start <= 1'b1;
+            add_one_in <= int_key_in;
+            add_two_in <= key_alfa;
+
+            curr_state <= 7'd1;
+          end
+          7'd1 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[2];
+              sbpsmc_start <= add_one_in[3];
+              inv_add_start <= add_two_in[2];
+              inv_sbpsmc_start <= add_two_in[3];
+
+              //ADD - INTKEY
+              add_start <= 1'b1;
+              add_one_in <= int_key_in;
+              add_two_in <= key_alfa;
+
+              curr_state <= 7'd2;
+            end
+          end
+
+          7'd2 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[4];
+              xor_start <= add_one_in[5];
+              inv_add_start <= add_two_in[4];
+              inv_sbpsmc_start <= add_two_in[5];
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd3;
+            end
+          end
+          7'd3 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[6];
+              xor_start <= add_one_in[7];
+              inv_add_start <= add_two_in[6];
+              inv_sbpsmc_start <= add_two_in[7];
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd4;
+            end
+          end
+
+          7'd4 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out; 
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[8];
+              sbpsmc_start <= add_one_in[9];
+              inv_add_start <= add_two_in[8];
+              inv_sbpsmc_start <= add_two_in[9];
+
+              //XOR - INTKEY
+              xor_start <= 1'b1;
+              add_one_in <= key_omega;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd5;
+            end
+          end
+          7'd5 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out; 
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[10];
+              sbpsmc_start <= add_one_in[11];
+              inv_add_start <= add_two_in[10];
+              inv_sbpsmc_start <= add_two_in[11];
+
+              //XOR - INTKEY
+              xor_start <= 1'b1;
+              add_one_in <= key_omega;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd6;
+            end
+          end
+          
+          7'd6 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out; 
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[12];
+              xor_start <= add_one_in[13];
+              inv_add_start <= add_two_in[12];
+              inv_sbpsmc_start <= add_two_in[13];
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              
+              curr_state <= 7'd7;
+            end
+          end
+          7'd7 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out; 
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[14];
+              xor_start <= add_one_in[15];
+              inv_add_start <= add_two_in[14];
+              inv_sbpsmc_start <= add_two_in[15];
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              
+              curr_state <= 7'd8;
+            end
+          end
+
+          7'd8 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[16];
+              sbpsmc_start <= add_one_in[17];
+              inv_add_start <= add_two_in[16];
+              inv_sbpsmc_start <= add_two_in[17];
+
+              //ADD - INTKEY
+              add_start <= 1'b1;
+              add_one_in <= key_alfa;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd9;
+            end
+          end
+          7'd9 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[18];
+              sbpsmc_start <= add_one_in[19];
+              inv_add_start <= add_two_in[18];
+              inv_sbpsmc_start <= add_two_in[19];
+
+              //ADD - INTKEY
+              add_start <= 1'b1;
+              add_one_in <= key_alfa;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd10;
+            end
+          end
+
+          7'd10 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[20];
+              xor_start <= add_one_in[21];
+              inv_add_start <= add_two_in[20];
+              inv_sbpsmc_start <= add_two_in[21];
+
+              //RND - KEY0
+              rnd_num <= 5'd0;
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              
+              curr_state <= 7'd11;
+            end
+          end
+          7'd11 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[22];
+              xor_start <= add_one_in[23];
+              inv_add_start <= add_two_in[22];
+              inv_sbpsmc_start <= add_two_in[23];
+
+              //RND - KEY0
+              rnd_num <= 5'd0;
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              
+              curr_state <= 7'd12;
+            end
+          end
+
+          //Intermediate key generation ends and round 0 key generation starts here
+          7'd12 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[24];
+              sbpsmc_start <= add_one_in[25];
+              inv_add_start <= add_two_in[24];
+              inv_sbpsmc_start <= add_two_in[25];
+
+              int_key <= dup_one_out;
+
+              //ADD - KEY0
+              add_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd13;
+            end
+          end
+          7'd13 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[26];
+              sbpsmc_start <= add_one_in[27];
+              inv_add_start <= add_two_in[26];
+              inv_sbpsmc_start <= add_two_in[27];
+
+              int_key <= dup_two_out;
+
+              //ADD - KEY0
+              add_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd14;
+            end
+          end
+
+          7'd14 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[28];
+              sbpsmc_start <= add_one_in[29];
+              inv_add_start <= add_two_in[28];
+              inv_sbpsmc_start <= add_two_in[29];
+
+              tmv_key <= dup_one_out;
+
+              //ADD - KEY0
+              add_one_in <= dup_one_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd15;
+            end
+          end
+          7'd15 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[30];
+              sbpsmc_start <= add_one_in[31];
+              inv_add_start <= add_two_in[30];
+              inv_sbpsmc_start <= add_two_in[31];
+
+              tmv_key <= dup_two_out;
+
+              //ADD - KEY0
+              add_one_in <= dup_two_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd16;
+            end
+          end
+
+          7'd16 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[32];
+              xor_start <= add_one_in[33];
+              inv_add_start <= add_two_in[32];
+              inv_sbpsmc_start <= add_two_in[33];
+
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd17;
+            end
+          end
+          7'd17 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[34];
+              xor_start <= add_one_in[35];
+              inv_add_start <= add_two_in[34];
+              inv_sbpsmc_start <= add_two_in[35];
+
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd18;
+            end
+          end
+
+          7'd18 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[36];
+              sbpsmc_start <= add_one_in[37];
+              inv_add_start <= add_two_in[36];
+              inv_sbpsmc_start <= add_two_in[37];
+
+              //XOR - KEY0
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd19;
+            end
+          end
+          7'd19 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[38];
+              sbpsmc_start <= add_one_in[39];
+              inv_add_start <= add_two_in[38];
+              inv_sbpsmc_start <= add_two_in[39];
+
+              //XOR - KEY0
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd20;
+            end
+          end
+
+          7'd20 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[40];
+              xor_start <= add_one_in[41];
+              inv_add_start <= add_two_in[40];
+              inv_sbpsmc_start <= add_two_in[41];
+
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd21;
+            end
+          end
+          7'd21 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[42];
+              xor_start <= add_one_in[43];
+              inv_add_start <= add_two_in[42];
+              inv_sbpsmc_start <= add_two_in[43];
+
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd22;
+            end
+          end
+
+          7'd22 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[44];
+              sbpsmc_start <= add_one_in[45];
+              inv_add_start <= add_two_in[44];
+              inv_sbpsmc_start <= add_two_in[45];
+
+              //ADD - KEY0
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd23;
+            end
+          end
+          7'd23 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[46];
+              sbpsmc_start <= add_one_in[47];
+              inv_add_start <= add_two_in[46];
+              inv_sbpsmc_start <= add_two_in[47];
+
+              //ADD - KEY0
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd24;
+            end
+          end
+          
+          //Round 0 key generation ends here and Round 0-1 operations start here
+          7'd24 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[48];
+              sbpsmc_start <= add_one_in[49];
+              inv_add_start <= add_two_in[48];
+              inv_sbpsmc_start <= add_two_in[49];
+
+              tmv_key <= dup_one_out;
+              //ADD - RND0
+              add_one_in <= dup_one_out;
+              add_two_in <= block_in;
+
+              curr_state <= 7'd25;
+            end
+          end
+          //Round 0 key generation ends here and Round 0-1 operations start here
+          7'd25 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[50];
+              sbpsmc_start <= add_one_in[51];
+              inv_add_start <= add_two_in[50];
+              inv_sbpsmc_start <= add_two_in[51];
+
+              tmv_key <= dup_two_out;
+              //ADD - RND0
+              add_one_in <= dup_two_out;
+              add_two_in <= block_in;
+
+              curr_state <= 7'd26;
+            end
+          end
+
+          7'd26 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[52];
+              xor_start <= add_one_in[53];
+              inv_add_start <= add_two_in[52];
+              inv_sbpsmc_start <= add_two_in[53];
+
+              //SPLT - RND1
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd27;
+            end
+          end
+          7'd27 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[54];
+              xor_start <= add_one_in[55];
+              inv_add_start <= add_two_in[54];
+              inv_sbpsmc_start <= add_two_in[55];
+
+              //SPLT - RND1
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd28;
+            end
+          end
+
+          7'd28 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[56];
+              sbpsmc_start <= add_one_in[57];
+              inv_add_start <= add_two_in[56];
+              inv_sbpsmc_start <= add_two_in[57];
+
+              //RND - KEY2
+              rnd_num <= rnd_num + 5'd2;
+              //XOR - RND1
+              xor_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd29;
+            end
+          end
+          7'd29 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[58];
+              sbpsmc_start <= add_one_in[59];
+              inv_add_start <= add_two_in[58];
+              inv_sbpsmc_start <= add_two_in[59];
+
+              //RND - KEY2
+              //rnd_num <= rnd_num + 5'd2;
+              //XOR - RND1
+              xor_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd30;
+            end
+          end
+          
+          //Round 0-1 operations end here and Round 2 key generation starts here
+          7'd30 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[60];
+              sbpsmc_start <= add_one_in[61];
+              inv_add_start <= add_two_in[60];
+              inv_sbpsmc_start <= add_two_in[61];
+
+              round_out <= dup_one_out;
+              //ADD - KEY2
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd31;
+            end
+          end
+          7'd31 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[62];
+              sbpsmc_start <= add_one_in[63];
+              inv_add_start <= add_two_in[62];
+              inv_sbpsmc_start <= add_two_in[63];
+
+              round_out <= dup_two_out;
+              //ADD - KEY2
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd32;
+            end
+          end
+
+          7'd32 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[64];
+              sbpsmc_start <= add_one_in[65];
+              inv_add_start <= add_two_in[64];
+              inv_sbpsmc_start <= add_two_in[65];
+
+              tmv_key <= dup_one_out;
+
+              //ADD - KEY2
+              add_one_in <= dup_one_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd33;
+            end
+          end
+          7'd33 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[66];
+              sbpsmc_start <= add_one_in[67];
+              inv_add_start <= add_two_in[66];
+              inv_sbpsmc_start <= add_two_in[67];
+
+              tmv_key <= dup_two_out;
+
+              //ADD - KEY2
+              add_one_in <= dup_two_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd34;
+            end
+          end
+
+          7'd34 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[68];
+              xor_start <= add_one_in[69];
+              inv_add_start <= add_two_in[68];
+              inv_sbpsmc_start <= add_two_in[69];
+
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd35;
+            end
+          end
+          7'd35 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[70];
+              xor_start <= add_one_in[71];
+              inv_add_start <= add_two_in[70];
+              inv_sbpsmc_start <= add_two_in[71];
+
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd36;
+            end
+          end
+
+          7'd36 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[72];
+              sbpsmc_start <= add_one_in[73];
+              inv_add_start <= add_two_in[72];
+              inv_sbpsmc_start <= add_two_in[73];
+
+              //XOR - KEY2
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd37;
+            end
+          end
+          7'd37 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[74];
+              sbpsmc_start <= add_one_in[75];
+              inv_add_start <= add_two_in[74];
+              inv_sbpsmc_start <= add_two_in[75];
+
+              //XOR - KEY2
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd38;
+            end
+          end
+
+          7'd38 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[76];
+              xor_start <= add_one_in[77];
+              inv_add_start <= add_two_in[76];
+              inv_sbpsmc_start <= add_two_in[77];
+
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd39;
+            end
+          end
+          7'd39 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[78];
+              xor_start <= add_one_in[79];
+              inv_add_start <= add_two_in[78];
+              inv_sbpsmc_start <= add_two_in[79];
+
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd40;
+            end
+          end
+
+          7'd40 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[80];
+              sbpsmc_start <= add_one_in[81];
+              inv_add_start <= add_two_in[80];
+              inv_sbpsmc_start <= add_two_in[81];
+
+              //ADD - KEY2
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd41;
+            end
+          end
+          7'd41 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[82];
+              sbpsmc_start <= add_one_in[83];
+              inv_add_start <= add_two_in[82];
+              inv_sbpsmc_start <= add_two_in[83];
+
+              //ADD - KEY2
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd42;
+            end
+          end
+          
+          //Round 2 key generation ends here and Round 2-3 operations start here
+          7'd42 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[84];
+              xor_start <= add_one_in[85];
+              inv_add_start <= add_two_in[84];
+              inv_sbpsmc_start <= add_two_in[85];
+
+              tmv_key <= dup_one_out;
+
+              //SPLT - RND2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 7'd43;
+            end
+          end
+          7'd43 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[86];
+              xor_start <= add_one_in[87];
+              inv_add_start <= add_two_in[86];
+              inv_sbpsmc_start <= add_two_in[87];
+
+              tmv_key <= dup_two_out;
+
+              //SPLT - RND2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 7'd44;
+            end
+          end
+
+          7'd44 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[88];
+              sbpsmc_start <= add_one_in[89];
+              inv_add_start <= add_two_in[88];
+              inv_sbpsmc_start <= add_two_in[89];
+
+              //XOR - RND2
+              xor_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd45;
+            end
+          end
+          7'd45 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[90];
+              sbpsmc_start <= add_one_in[91];
+              inv_add_start <= add_two_in[90];
+              inv_sbpsmc_start <= add_two_in[91];
+
+              //XOR - RND2
+              xor_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd46;
+            end
+          end
+          
+          7'd46 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[92];
+              xor_start <= add_one_in[93];
+              inv_add_start <= add_two_in[92];
+              inv_sbpsmc_start <= add_two_in[93];
+
+              //SPLT -RND3
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd47;
+            end
+          end
+          7'd47 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[94];
+              xor_start <= add_one_in[95];
+              inv_add_start <= add_two_in[94];
+              inv_sbpsmc_start <= add_two_in[95];
+
+              //SPLT -RND3
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd48;
+            end
+          end
+
+          7'd48 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[96];
+              sbpsmc_start <= add_one_in[97];
+              inv_add_start <= add_two_in[96];
+              inv_sbpsmc_start <= add_two_in[97];
+
+              //RND - KEY4
+              rnd_num <= rnd_num + 5'd2;
+
+              //XOR - RND3
+              xor_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd49;
+            end
+          end
+          7'd49 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[98];
+              sbpsmc_start <= add_one_in[99];
+              inv_add_start <= add_two_in[98];
+              inv_sbpsmc_start <= add_two_in[99];
+
+              //RND - KEY4
+              //rnd_num <= rnd_num + 5'd2;
+
+              //XOR - RND3
+              xor_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd50;
+            end
+          end
+
+          //Round 2-3 operations end here and Round 4 key generation starts here
+          7'd50 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[100];
+              sbpsmc_start <= add_one_in[101];
+              inv_add_start <= add_two_in[100];
+              inv_sbpsmc_start <= add_two_in[101];
+
+              round_out <= dup_one_out;
+              //ADD - KEY4
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd51;
+            end
+          end
+          7'd51 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[102];
+              sbpsmc_start <= add_one_in[103];
+              inv_add_start <= add_two_in[102];
+              inv_sbpsmc_start <= add_two_in[103];
+
+              round_out <= dup_two_out;
+              //ADD - KEY4
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd52;
+            end
+          end
+
+          7'd52 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[104];
+              sbpsmc_start <= add_one_in[105];
+              inv_add_start <= add_two_in[104];
+              inv_sbpsmc_start <= add_two_in[105];
+
+              tmv_key <= dup_one_out;
+
+              //ADD - KEY4
+              add_one_in <= dup_one_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd53;
+            end
+          end
+          7'd53 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[106];
+              sbpsmc_start <= add_one_in[107];
+              inv_add_start <= add_two_in[106];
+              inv_sbpsmc_start <= add_two_in[107];
+
+              tmv_key <= dup_two_out;
+
+              //ADD - KEY4
+              add_one_in <= dup_two_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd54;
+            end
+          end
+
+          7'd54 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[108];
+              xor_start <= add_one_in[109];
+              inv_add_start <= add_two_in[108];
+              inv_sbpsmc_start <= add_two_in[109];
+
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd55;
+            end
+          end
+          7'd55 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[110];
+              xor_start <= add_one_in[111];
+              inv_add_start <= add_two_in[110];
+              inv_sbpsmc_start <= add_two_in[111];
+
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd56;
+            end
+          end
+
+          7'd56 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[112];
+              sbpsmc_start <= add_one_in[113];
+              inv_add_start <= add_two_in[112];
+              inv_sbpsmc_start <= add_two_in[113];
+
+              //XOR - KEY4
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd57;
+            end
+          end
+          7'd57 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[114];
+              sbpsmc_start <= add_one_in[115];
+              inv_add_start <= add_two_in[114];
+              inv_sbpsmc_start <= add_two_in[115];
+
+              //XOR - KEY4
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd58;
+            end
+          end
+
+          7'd58 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[116];
+              xor_start <= add_one_in[117];
+              inv_add_start <= add_two_in[116];
+              inv_sbpsmc_start <= add_two_in[117];
+
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd59;
+            end
+          end
+          7'd59 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[118];
+              xor_start <= add_one_in[119];
+              inv_add_start <= add_two_in[118];
+              inv_sbpsmc_start <= add_two_in[119];
+
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd60;
+            end
+          end
+
+          7'd60 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[120];
+              sbpsmc_start <= add_one_in[121];
+              inv_add_start <= add_two_in[120];
+              inv_sbpsmc_start <= add_two_in[121];
+
+              //ADD - KEY4
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd61;
+            end
+          end
+          7'd61 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[122];
+              sbpsmc_start <= add_one_in[123];
+              inv_add_start <= add_two_in[122];
+              inv_sbpsmc_start <= add_two_in[123];
+
+              //ADD - KEY4
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd62;
+            end
+          end
+
+          //Round 4 key generation ends here and Round 4-5 operations start here
+          7'd62 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[124];
+              xor_start <= add_one_in[125];
+              inv_add_start <= add_two_in[124];
+              inv_sbpsmc_start <= add_two_in[125];
+
+              tmv_key <= dup_one_out;
+
+              //SPLT - RND4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 7'd63;
+            end
+          end
+          7'd63 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[126];
+              xor_start <= add_one_in[127];
+              inv_add_start <= add_two_in[126];
+              inv_sbpsmc_start <= add_two_in[127];
+
+              tmv_key <= dup_two_out;
+
+              //SPLT - RND4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 7'd64;
+            end
+          end
+
+          7'd64 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[0];
+              sbpsmc_start <= add_one_in[1];
+              inv_add_start <= add_two_in[0];
+              inv_sbpsmc_start <= add_two_in[1];
+
+              //XOR - RND4
+              xor_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd65;
+            end
+          end
+          7'd65 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[2];
+              sbpsmc_start <= add_one_in[3];
+              inv_add_start <= add_two_in[2];
+              inv_sbpsmc_start <= add_two_in[3];
+
+              //XOR - RND4
+              xor_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd66;
+            end
+          end
+          
+          7'd66 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[4];
+              xor_start <= add_one_in[5];
+              inv_add_start <= add_two_in[4];
+              inv_sbpsmc_start <= add_two_in[5];
+
+              //SPLT -RND5
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd67;
+            end
+          end
+          7'd67 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[6];
+              xor_start <= add_one_in[7];
+              inv_add_start <= add_two_in[6];
+              inv_sbpsmc_start <= add_two_in[7];
+
+              //SPLT -RND5
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd68;
+            end
+          end
+
+          7'd68 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[8];
+              sbpsmc_start <= add_one_in[9];
+              inv_add_start <= add_two_in[8];
+              inv_sbpsmc_start <= add_two_in[9];
+
+              //RND - KEY6
+              rnd_num <= rnd_num + 5'd2;
+
+              //XOR - RND5
+              xor_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd69;
+            end
+          end
+          7'd69 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[10];
+              sbpsmc_start <= add_one_in[11];
+              inv_add_start <= add_two_in[10];
+              inv_sbpsmc_start <= add_two_in[11];
+
+              //RND - KEY6
+              //rnd_num <= rnd_num + 5'd2;
+
+              //XOR - RND5
+              xor_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd70;
+            end
+          end
+          
+          //Round 4-5 operations end here and Round 6 key generation starts here
+          7'd70 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[12];
+              sbpsmc_start <= add_one_in[13];
+              inv_add_start <= add_two_in[12];
+              inv_sbpsmc_start <= add_two_in[13];
+
+              round_out <= dup_one_out;
+              //ADD - KEY6
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd71;
+            end
+          end
+          7'd71 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[14];
+              sbpsmc_start <= add_one_in[15];
+              inv_add_start <= add_two_in[14];
+              inv_sbpsmc_start <= add_two_in[15];
+
+              round_out <= dup_two_out;
+              //ADD - KEY6
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd72;
+            end
+          end
+
+          7'd72 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[16];
+              sbpsmc_start <= add_one_in[17];
+              inv_add_start <= add_two_in[16];
+              inv_sbpsmc_start <= add_two_in[17];
+
+              tmv_key <= dup_one_out;
+
+              //ADD - KEY6
+              add_one_in <= dup_one_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd73;
+            end
+          end
+          7'd73 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[18];
+              sbpsmc_start <= add_one_in[19];
+              inv_add_start <= add_two_in[18];
+              inv_sbpsmc_start <= add_two_in[19];
+
+              tmv_key <= dup_two_out;
+
+              //ADD - KEY6
+              add_one_in <= dup_two_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd74;
+            end
+          end
+
+          7'd74 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[20];
+              xor_start <= add_one_in[21];
+              inv_add_start <= add_two_in[20];
+              inv_sbpsmc_start <= add_two_in[21];
+
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd75;
+            end
+          end
+          7'd75 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[22];
+              xor_start <= add_one_in[23];
+              inv_add_start <= add_two_in[22];
+              inv_sbpsmc_start <= add_two_in[23];
+
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd76;
+            end
+          end
+
+          7'd76 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[24];
+              sbpsmc_start <= add_one_in[25];
+              inv_add_start <= add_two_in[24];
+              inv_sbpsmc_start <= add_two_in[25];
+
+              //XOR - KEY6
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd77;
+            end
+          end
+          7'd77 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[26];
+              sbpsmc_start <= add_one_in[27];
+              inv_add_start <= add_two_in[26];
+              inv_sbpsmc_start <= add_two_in[27];
+
+              //XOR - KEY6
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd78;
+            end
+          end
+
+          7'd78 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[28];
+              xor_start <= add_one_in[29];
+              inv_add_start <= add_two_in[28];
+              inv_sbpsmc_start <= add_two_in[29];
+
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd79;
+            end
+          end
+          7'd79 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[30];
+              xor_start <= add_one_in[31];
+              inv_add_start <= add_two_in[30];
+              inv_sbpsmc_start <= add_two_in[31];
+
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd80;
+            end
+          end
+
+          7'd80 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[32];
+              sbpsmc_start <= add_one_in[33];
+              inv_add_start <= add_two_in[32];
+              inv_sbpsmc_start <= add_two_in[33];
+
+              //ADD - KEY6
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd81;
+            end
+          end
+          7'd81 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[34];
+              sbpsmc_start <= add_one_in[35];
+              inv_add_start <= add_two_in[34];
+              inv_sbpsmc_start <= add_two_in[35];
+
+              //ADD - KEY6
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd82;
+            end
+          end
+
+          //Round 6 key generation ends here and Round 6-7 operations start here
+          7'd82 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[36];
+              xor_start <= add_one_in[37];
+              inv_add_start <= add_two_in[36];
+              inv_sbpsmc_start <= add_two_in[37];
+
+              tmv_key <= dup_one_out;
+
+              //SPLT - RND6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 7'd83;
+            end
+          end
+          7'd83 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[38];
+              xor_start <= add_one_in[39];
+              inv_add_start <= add_two_in[38];
+              inv_sbpsmc_start <= add_two_in[39];
+
+              tmv_key <= dup_two_out;
+
+              //SPLT - RND6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 7'd84;
+            end
+          end
+
+          7'd84 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[40];
+              sbpsmc_start <= add_one_in[41];
+              inv_add_start <= add_two_in[40];
+              inv_sbpsmc_start <= add_two_in[41];
+
+              //XOR - RND6
+              xor_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd85;
+            end
+          end
+          7'd85 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[42];
+              sbpsmc_start <= add_one_in[43];
+              inv_add_start <= add_two_in[42];
+              inv_sbpsmc_start <= add_two_in[43];
+
+              //XOR - RND6
+              xor_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd86;
+            end
+          end
+          
+          7'd86 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[44];
+              xor_start <= add_one_in[45];
+              inv_add_start <= add_two_in[44];
+              inv_sbpsmc_start <= add_two_in[45];
+
+              //SPLT -RND7
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd87;
+            end
+          end
+          7'd87 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[46];
+              xor_start <= add_one_in[47];
+              inv_add_start <= add_two_in[46];
+              inv_sbpsmc_start <= add_two_in[47];
+
+              //SPLT -RND7
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd88;
+            end
+          end
+
+          7'd88 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[48];
+              sbpsmc_start <= add_one_in[49];
+              inv_add_start <= add_two_in[48];
+              inv_sbpsmc_start <= add_two_in[49];
+
+              //RND - KEY8
+              rnd_num <= rnd_num + 5'd2;
+
+              //XOR - RND7
+              xor_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd89;
+            end
+          end
+          7'd89 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[50];
+              sbpsmc_start <= add_one_in[51];
+              inv_add_start <= add_two_in[50];
+              inv_sbpsmc_start <= add_two_in[51];
+
+              //RND - KEY8
+              //rnd_num <= rnd_num + 5'd2;
+
+              //XOR - RND7
+              xor_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd90;
+            end
+          end
+
+          //Round 6-7 operations end here and Round 8 key generation starts here
+          7'd90 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[52];
+              sbpsmc_start <= add_one_in[53];
+              inv_add_start <= add_two_in[52];
+              inv_sbpsmc_start <= add_two_in[53];
+
+              round_out <= dup_one_out;
+
+              //ADD - KEY8
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd91;
+            end
+          end
+          7'd91 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[54];
+              sbpsmc_start <= add_one_in[55];
+              inv_add_start <= add_two_in[54];
+              inv_sbpsmc_start <= add_two_in[55];
+
+              round_out <= dup_two_out;
+
+              //ADD - KEY8
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd92;
+            end
+          end
+
+          7'd92 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[56];
+              sbpsmc_start <= add_one_in[57];
+              inv_add_start <= add_two_in[56];
+              inv_sbpsmc_start <= add_two_in[57];
+
+              tmv_key <= dup_one_out;
+
+              //ADD - KEY8
+              add_one_in <= dup_one_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd93;
+            end
+          end
+          7'd93 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[58];
+              sbpsmc_start <= add_one_in[59];
+              inv_add_start <= add_two_in[58];
+              inv_sbpsmc_start <= add_two_in[59];
+
+              tmv_key <= dup_two_out;
+
+              //ADD - KEY8
+              add_one_in <= dup_two_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd94;
+            end
+          end
+
+          7'd94 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[60];
+              xor_start <= add_one_in[61];
+              inv_add_start <= add_two_in[60];
+              inv_sbpsmc_start <= add_two_in[61];
+
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd95;
+            end
+          end
+          7'd95 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[62];
+              xor_start <= add_one_in[63];
+              inv_add_start <= add_two_in[62];
+              inv_sbpsmc_start <= add_two_in[63];
+
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd96;
+            end
+          end
+
+          7'd96 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[64];
+              sbpsmc_start <= add_one_in[65];
+              inv_add_start <= add_two_in[64];
+              inv_sbpsmc_start <= add_two_in[65];
+
+              //XOR - KEY8
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd97;
+            end
+          end
+          7'd97 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[66];
+              sbpsmc_start <= add_one_in[67];
+              inv_add_start <= add_two_in[66];
+              inv_sbpsmc_start <= add_two_in[67];
+
+              //XOR - KEY8
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd98;
+            end
+          end
+
+          7'd98 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[68];
+              xor_start <= add_one_in[69];
+              inv_add_start <= add_two_in[68];
+              inv_sbpsmc_start <= add_two_in[69];
+
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd99;
+            end
+          end
+          7'd99 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[70];
+              xor_start <= add_one_in[71];
+              inv_add_start <= add_two_in[70];
+              inv_sbpsmc_start <= add_two_in[71];
+
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd100;
+            end
+          end
+
+          7'd100 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[72];
+              sbpsmc_start <= add_one_in[73];
+              inv_add_start <= add_two_in[72];
+              inv_sbpsmc_start <= add_two_in[73];
+
+              //ADD - KEY8
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd101;
+            end
+          end
+          7'd101 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[74];
+              sbpsmc_start <= add_one_in[75];
+              inv_add_start <= add_two_in[74];
+              inv_sbpsmc_start <= add_two_in[75];
+
+              //ADD - KEY8
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd102;
+            end
+          end
+          
+          //Round 8 key generation ends here and Round 8-9 operations start here
+          7'd102 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[76];
+              xor_start <= add_one_in[77];
+              inv_add_start <= add_two_in[76];
+              inv_sbpsmc_start <= add_two_in[77];
+
+              tmv_key <= dup_one_out;
+
+              //SPLT - RND8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 7'd103;
+            end
+          end
+          7'd103 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[78];
+              xor_start <= add_one_in[79];
+              inv_add_start <= add_two_in[78];
+              inv_sbpsmc_start <= add_two_in[79];
+
+              tmv_key <= dup_two_out;
+
+              //SPLT - RND8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 7'd104;
+            end
+          end
+
+          7'd104 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[80];
+              sbpsmc_start <= add_one_in[81];
+              inv_add_start <= add_two_in[80];
+              inv_sbpsmc_start <= add_two_in[81];
+
+              //XOR - RND8
+              xor_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd105;
+            end
+          end
+          7'd105 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[82];
+              sbpsmc_start <= add_one_in[83];
+              inv_add_start <= add_two_in[82];
+              inv_sbpsmc_start <= add_two_in[83];
+
+              //XOR - RND8
+              xor_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd106;
+            end
+          end
+          
+          7'd106 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[84];
+              xor_start <= add_one_in[85];
+              inv_add_start <= add_two_in[84];
+              inv_sbpsmc_start <= add_two_in[85];
+
+              //SPLT -RND9
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd107;
+            end
+          end
+          7'd107 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[86];
+              xor_start <= add_one_in[87];
+              inv_add_start <= add_two_in[86];
+              inv_sbpsmc_start <= add_two_in[87];
+
+              //SPLT -RND9
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd108;
+            end
+          end
+
+          7'd108 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[88];
+              sbpsmc_start <= add_one_in[89];
+              inv_add_start <= add_two_in[88];
+              inv_sbpsmc_start <= add_two_in[89];
+
+              //RND - KEY10
+              rnd_num <= rnd_num + 5'd2;
+
+              //XOR - RND9
+              xor_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd109;
+            end
+          end
+          7'd109 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[90];
+              sbpsmc_start <= add_one_in[91];
+              inv_add_start <= add_two_in[90];
+              inv_sbpsmc_start <= add_two_in[91];
+
+              //RND - KEY10
+              //rnd_num <= rnd_num + 5'd2;
+
+              //XOR - RND9
+              xor_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= {tmv_key[BLOCK_SIZE-1-the_lr:0], tmv_key[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd110;
+            end
+          end
+
+          //Round 8-9 operations end here and Round 10 key generation starts here
+          7'd110 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[92];
+              sbpsmc_start <= add_one_in[93];
+              inv_add_start <= add_two_in[92];
+              inv_sbpsmc_start <= add_two_in[93];
+
+              round_out <= dup_one_out;
+
+              //ADD - KEY10
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              if (rnd_cnt == 5'd10) begin
+                curr_state <= 7'd111;
+              end
+              else if (rnd_cnt == 5'd14) begin
+                if (rnd_num  == 5'd14) begin
+                  curr_state <= 7'd111;
+                end
+                else begin
+                  curr_state <= 7'd71;
+                end
+              end
+              else begin
+                if (rnd_num  == 5'd18) begin
+                  curr_state <= 7'd111;
+                end
+                else begin
+                  curr_state <= 7'd31;
+                end
+              end
+            end
+          end
+          7'd111 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[94];
+              sbpsmc_start <= add_one_in[95];
+              inv_add_start <= add_two_in[94];
+              inv_sbpsmc_start <= add_two_in[95];
+
+              round_out <= dup_two_out;
+
+              //ADD - KEY10
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd112;
+            end
+          end
+
+          7'd112 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[96];
+              sbpsmc_start <= add_one_in[97];
+              inv_add_start <= add_two_in[96];
+              inv_sbpsmc_start <= add_two_in[97];
+
+              tmv_key <= dup_one_out;
+
+              //ADD - KEY10
+              add_one_in <= dup_one_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd113;
+            end
+          end
+          7'd113 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[98];
+              sbpsmc_start <= add_one_in[99];
+              inv_add_start <= add_two_in[98];
+              inv_sbpsmc_start <= add_two_in[99];
+
+              tmv_key <= dup_two_out;
+
+              //ADD - KEY10
+              add_one_in <= dup_two_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd114;
+            end
+          end
+
+          7'd114 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[100];
+              xor_start <= add_one_in[101];
+              inv_add_start <= add_two_in[100];
+              inv_sbpsmc_start <= add_two_in[101];
+
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd115;
+            end
+          end
+          7'd115 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[102];
+              xor_start <= add_one_in[103];
+              inv_add_start <= add_two_in[102];
+              inv_sbpsmc_start <= add_two_in[103];
+
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd116;
+            end
+          end
+
+          7'd116 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[104];
+              sbpsmc_start <= add_one_in[105];
+              inv_add_start <= add_two_in[104];
+              inv_sbpsmc_start <= add_two_in[105];
+
+              //XOR - KEY10
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd117;
+            end
+          end
+          7'd117 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[106];
+              sbpsmc_start <= add_one_in[107];
+              inv_add_start <= add_two_in[106];
+              inv_sbpsmc_start <= add_two_in[107];
+
+              //XOR - KEY10
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd118;
+            end
+          end
+
+          7'd118 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[108];
+              xor_start <= add_one_in[109];
+              inv_add_start <= add_two_in[108];
+              inv_sbpsmc_start <= add_two_in[109];
+
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd119;
+            end
+          end
+          7'd119 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[110];
+              xor_start <= add_one_in[111];
+              inv_add_start <= add_two_in[110];
+              inv_sbpsmc_start <= add_two_in[111];
+
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd120;
+            end
+          end
+
+          7'd120 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[112];
+              sbpsmc_start <= add_one_in[113];
+              inv_add_start <= add_two_in[112];
+              inv_sbpsmc_start <= add_two_in[113];
+
+              //ADD - KEY10
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd121;
+            end
+          end
+          7'd121 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[114];
+              sbpsmc_start <= add_one_in[115];
+              inv_add_start <= add_two_in[114];
+              inv_sbpsmc_start <= add_two_in[115];
+
+              //ADD - KEY10
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd122;
+            end
+          end
+
+          //Round 10 key generation ends here and Round 10 operation starts here
+          7'd122 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[116];
+              xor_start <= add_one_in[117];
+              inv_add_start <= add_two_in[116];
+              inv_sbpsmc_start <= add_two_in[117];
+
+              tmv_key <= dup_one_out;
+
+              //SPLT - RND10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 7'd123;
+            end
+          end
+          7'd123 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[118];
+              xor_start <= add_one_in[119];
+              inv_add_start <= add_two_in[118];
+              inv_sbpsmc_start <= add_two_in[119];
+
+              tmv_key <= dup_two_out;
+
+              //SPLT - RND10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= round_out;
+
+              curr_state <= 7'd124;
+            end
+          end
+          
+          7'd124 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[120];
+              sbpsmc_start <= add_one_in[121];
+              inv_add_start <= add_two_in[120];
+              inv_sbpsmc_start <= add_two_in[121];
+
+              //ADD - RND10
+              add_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd125;
+            end
+          end
+          7'd125 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[122];
+              sbpsmc_start <= add_one_in[123];
+              inv_add_start <= add_two_in[122];
+              inv_sbpsmc_start <= add_two_in[123];
+
+              //ADD - RND10
+              add_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd126;
+            end
+          end
+
+          7'd126 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= 1'b0;
+              xor_start <= 1'b0;
+              sbpsmc_start <= 1'b0;
+              inv_add_start <= 1'b0;
+              inv_sbpsmc_start <= 1'b0;
+
+              round_out <= dup_one_out;
+              reg_block_rdy <= 1'b1;
+
+              curr_state <= 7'd0;
+            end
+          end
+          default : begin
+            rnd_num <= 5'd0;
+            add_start <= 1'b0;
+            xor_start <= 1'b0;
+            curr_state <= 7'd0;
+            sbpsmc_start <= 1'b0;
+            reg_block_rdy <= 1'b0;
+            tmv_key <= {BLOCK_SIZE{1'b0}};
+            int_key <= {BLOCK_SIZE{1'b0}};
+            round_out <= {BLOCK_SIZE{1'b0}};
+            add_one_in <= {BLOCK_SIZE{1'b0}};
+            add_two_in <= {BLOCK_SIZE{1'b0}};
+            dup_one_out <= {BLOCK_SIZE{1'b0}};
+            dup_two_out <= {BLOCK_SIZE{1'b0}};
+          end
+        endcase
+      end
+      //Decryption
+      else begin
+        case (curr_state)
+          //Intermediate key generattion starts here
+          7'd0 : begin
+            //SOME OPERATIONS
+            xor_start <= add_one_in[0];
+            sbpsmc_start <= add_one_in[1];
+            inv_add_start <= add_two_in[0];
+            inv_sbpsmc_start <= add_two_in[1];
+
+            //ADD - INTKEY
+            add_start <= 1'b1;
+            add_one_in <= int_key_in;
+            add_two_in <= key_alfa;
+
+            curr_state <= 7'd1;
+          end
+          7'd1 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[2];
+              sbpsmc_start <= add_one_in[3];
+              inv_add_start <= add_two_in[2];
+              inv_sbpsmc_start <= add_two_in[3];
+
+              //ADD - INTKEY
+              add_start <= 1'b1;
+              add_one_in <= int_key_in;
+              add_two_in <= key_alfa;
+
+              curr_state <= 7'd2;
+            end
+          end
+
+          7'd2 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[4];
+              xor_start <= add_one_in[5];
+              inv_add_start <= add_two_in[4];
+              inv_sbpsmc_start <= add_two_in[5];
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd3;
+            end
+          end
+          7'd3 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[6];
+              xor_start <= add_one_in[7];
+              inv_add_start <= add_two_in[6];
+              inv_sbpsmc_start <= add_two_in[7];
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd4;
+            end
+          end
+
+          7'd4 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[8];
+              sbpsmc_start <= add_one_in[9];
+              inv_add_start <= add_two_in[8];
+              inv_sbpsmc_start <= add_two_in[9];
+
+              //XOR - INTKEY
+              xor_start <= 1'b1;
+              add_one_in <= key_omega;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd5;
+            end
+          end
+          7'd5 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[10];
+              sbpsmc_start <= add_one_in[11];
+              inv_add_start <= add_two_in[10];
+              inv_sbpsmc_start <= add_two_in[11];
+
+              //XOR - INTKEY
+              xor_start <= 1'b1;
+              add_one_in <= key_omega;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd6;
+            end
+          end
+
+          7'd6 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[12];
+              xor_start <= add_one_in[13];
+              inv_add_start <= add_two_in[12];
+              inv_sbpsmc_start <= add_two_in[13];
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              
+              curr_state <= 7'd7;
+            end
+          end
+          7'd7 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[14];
+              xor_start <= add_one_in[15];
+              inv_add_start <= add_two_in[14];
+              inv_sbpsmc_start <= add_two_in[15];
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              
+              curr_state <= 7'd8;
+            end
+          end
+
+          7'd8 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[16];
+              sbpsmc_start <= add_one_in[17];
+              inv_add_start <= add_two_in[16];
+              inv_sbpsmc_start <= add_two_in[17];
+
+              //ADD - INTKEY
+              add_start <= 1'b1;
+              add_one_in <= key_alfa;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd9;
+            end
+          end
+          7'd9 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[18];
+              sbpsmc_start <= add_one_in[19];
+              inv_add_start <= add_two_in[18];
+              inv_sbpsmc_start <= add_two_in[19];
+
+              //ADD - INTKEY
+              add_start <= 1'b1;
+              add_one_in <= key_alfa;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd10;
+            end
+          end
+          
+          7'd10 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[20];
+              xor_start <= add_one_in[21];
+              inv_add_start <= add_two_in[20];
+              inv_sbpsmc_start <= add_two_in[21];
+
+              //RND - KEY10
+              rnd_num <= rnd_cnt;
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              
+              curr_state <= 7'd11;
+            end
+          end
+          7'd11 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[22];
+              xor_start <= add_one_in[23];
+              inv_add_start <= add_two_in[22];
+              inv_sbpsmc_start <= add_two_in[23];
+
+              //RND - KEY10
+              rnd_num <= rnd_cnt;
+
+              //SPLT - INTKEY
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              
+              curr_state <= 7'd12;
+            end
+          end
+
+          //Intermediate key generation ends and round 10 key generation starts here
+          7'd12 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[24];
+              sbpsmc_start <= add_one_in[25];
+              inv_add_start <= add_two_in[24];
+              inv_sbpsmc_start <= add_two_in[25];
+
+              int_key <= dup_one_out;
+
+              //ADD - KEY10
+              add_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd13;
+            end
+          end
+          7'd13 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[26];
+              sbpsmc_start <= add_one_in[27];
+              inv_add_start <= add_two_in[26];
+              inv_sbpsmc_start <= add_two_in[27];
+
+              int_key <= dup_two_out;
+
+              //ADD - KEY10
+              add_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd14;
+            end
+          end
+          
+          7'd14 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[28];
+              sbpsmc_start <= add_one_in[29];
+              inv_add_start <= add_two_in[28];
+              inv_sbpsmc_start <= add_two_in[29];
+
+              tmv_key <= dup_one_out;
+
+              //ADD - KEY10
+              add_one_in <= dup_one_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd15;
+            end
+          end
+          7'd15 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[30];
+              sbpsmc_start <= add_one_in[31];
+              inv_add_start <= add_two_in[30];
+              inv_sbpsmc_start <= add_two_in[31];
+
+              tmv_key <= dup_two_out;
+
+              //ADD - KEY10
+              add_one_in <= dup_two_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd16;
+            end
+          end
+          
+          7'd16 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[32];
+              xor_start <= add_one_in[33];
+              inv_add_start <= add_two_in[32];
+              inv_sbpsmc_start <= add_two_in[33];
+
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd17;
+            end
+          end
+          7'd17 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[34];
+              xor_start <= add_one_in[35];
+              inv_add_start <= add_two_in[34];
+              inv_sbpsmc_start <= add_two_in[35];
+
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd18;
+            end
+          end
+          
+          7'd18 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[36];
+              sbpsmc_start <= add_one_in[37];
+              inv_add_start <= add_two_in[36];
+              inv_sbpsmc_start <= add_two_in[37];
+
+              //XOR - KEY10
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd19;
+            end
+          end
+          7'd19 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[38];
+              sbpsmc_start <= add_one_in[39];
+              inv_add_start <= add_two_in[38];
+              inv_sbpsmc_start <= add_two_in[39];
+
+              //XOR - KEY10
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd20;
+            end
+          end
+          
+          7'd20 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[40];
+              xor_start <= add_one_in[41];
+              inv_add_start <= add_two_in[40];
+              inv_sbpsmc_start <= add_two_in[41];
+
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd21;
+            end
+          end
+          7'd21 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[42];
+              xor_start <= add_one_in[43];
+              inv_add_start <= add_two_in[42];
+              inv_sbpsmc_start <= add_two_in[43];
+
+              //SPLT - KEY10
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd22;
+            end
+          end
+          
+          7'd22 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[44];
+              sbpsmc_start <= add_one_in[45];
+              inv_add_start <= add_two_in[44];
+              inv_sbpsmc_start <= add_two_in[45];
+
+              //ADD - KEY10
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd23;
+            end
+          end
+          7'd23 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[46];
+              sbpsmc_start <= add_one_in[47];
+              inv_add_start <= add_two_in[46];
+              inv_sbpsmc_start <= add_two_in[47];
+
+              //ADD - KEY10
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd24;
+            end
+          end
+          
+          //Round 10 key generation ends here and Round 10 operations start here
+          7'd24 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[48];
+              sbpsmc_start <= add_one_in[49];
+              add_start <= add_two_in[48];
+              inv_sbpsmc_start <= add_two_in[49];
+
+              tmv_key <= dup_one_out;
+
+              //SUB - RND10
+              inv_add_start <= 1'b1;
+              add_one_in <= block_in;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd25;
+            end
+          end
+          7'd25 : begin
+            if (m2p64sub_rdy == 1'b1) begin
+              dup_one_out <= m2p64sub_out;
+
+              //SOME OPERATIONS
+              xor_start <= add_one_in[50];
+              sbpsmc_start <= add_one_in[51];
+              add_start <= add_two_in[50];
+              inv_sbpsmc_start <= add_two_in[51];
+
+              tmv_key <= dup_two_out;
+
+              //SUB - RND10
+              inv_add_start <= 1'b1;
+              add_one_in <= block_in;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd26;
+            end
+          end
+           
+          7'd26 : begin
+            if (m2p64sub_rdy == 1'b1) begin
+              dup_two_out <= m2p64sub_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[52];
+              xor_start <= add_one_in[53];
+              inv_add_start <= add_two_in[52];
+              sbpsmc_start <= add_two_in[53];
+
+              //RND - KEY8
+              rnd_num <= rnd_num - 5'd2;
+
+              //INV SPLT - RND10
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd27;
+            end
+          end
+          7'd27 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[54];
+              xor_start <= add_one_in[55];
+              inv_add_start <= add_two_in[54];
+              sbpsmc_start <= add_two_in[55];
+
+              //RND - KEY8
+              //rnd_num <= rnd_num - 5'd2;
+
+              //INV SPLT - RND10
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd28;
+            end
+          end
+           
+          //Round 10 operations end here and Round 8 key operations start here
+          7'd28 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[56];
+              xor_start <= add_one_in[57];
+              inv_add_start <= add_two_in[56];
+              inv_sbpsmc_start <= add_two_in[57];
+
+              round_out <= dup_one_out;
+
+              //ADD - KEY8
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd29;
+            end
+          end
+          7'd29 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[58];
+              xor_start <= add_one_in[59];
+              inv_add_start <= add_two_in[58];
+              inv_sbpsmc_start <= add_two_in[59];
+
+              round_out <= dup_two_out;
+
+              //ADD - KEY8
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd30;
+            end
+          end
+          
+          7'd30 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[60];
+              xor_start <= add_one_in[61];
+              inv_add_start <= add_two_in[60];
+              inv_sbpsmc_start <= add_two_in[61];
+
+              tmv_key <= dup_one_out;
+
+              //ADD - KEY8
+              add_one_in <= dup_one_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd31;
+            end
+          end
+          7'd31 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[62];
+              xor_start <= add_one_in[63];
+              inv_add_start <= add_two_in[62];
+              inv_sbpsmc_start <= add_two_in[63];
+
+              tmv_key <= dup_two_out;
+
+              //ADD - KEY8
+              add_one_in <= dup_two_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd32;
+            end
+          end
+          
+          7'd32 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[64];
+              xor_start <= add_one_in[65];
+              inv_add_start <= add_two_in[64];
+              inv_sbpsmc_start <= add_two_in[65];
+
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd33;
+            end
+          end
+          7'd33 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[66];
+              xor_start <= add_one_in[67];
+              inv_add_start <= add_two_in[66];
+              inv_sbpsmc_start <= add_two_in[67];
+
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd34;
+            end
+          end
+
+          7'd34 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[68];
+              sbpsmc_start <= add_one_in[69];
+              inv_add_start <= add_two_in[68];
+              inv_sbpsmc_start <= add_two_in[69];
+
+              //XOR - KEY8
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd35;
+            end
+          end
+          7'd35 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[70];
+              sbpsmc_start <= add_one_in[71];
+              inv_add_start <= add_two_in[70];
+              inv_sbpsmc_start <= add_two_in[71];
+
+              //XOR - KEY8
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd36;
+            end
+          end
+
+          7'd36 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[72];
+              xor_start <= add_one_in[73];
+              inv_add_start <= add_two_in[72];
+              inv_sbpsmc_start <= add_two_in[73];
+
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd37;
+            end
+          end
+          7'd37 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[74];
+              xor_start <= add_one_in[75];
+              inv_add_start <= add_two_in[74];
+              inv_sbpsmc_start <= add_two_in[75];
+
+              //SPLT - KEY8
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd38;
+            end
+          end
+
+          7'd38 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[76];
+              xor_start <= add_one_in[77];
+              inv_add_start <= add_two_in[76];
+              inv_sbpsmc_start <= add_two_in[77];
+
+              //ADD - KEY8
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd39;
+            end
+          end
+          7'd39 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[78];
+              xor_start <= add_one_in[79];
+              inv_add_start <= add_two_in[78];
+              inv_sbpsmc_start <= add_two_in[79];
+
+              //ADD - KEY8
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd40;
+            end
+          end
+
+          //Round 8 key generation ends here and Round 9-8 operations start here
+          7'd40 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[80];
+              sbpsmc_start <= add_one_in[81];
+              inv_add_start <= add_two_in[80];
+              inv_sbpsmc_start <= add_two_in[81];
+
+              tmv_key <= dup_one_out;
+
+              //XOR - RND9
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {dup_one_out[BLOCK_SIZE-1-the_lr:0], dup_one_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd41;
+            end
+          end
+          7'd41 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[82];
+              sbpsmc_start <= add_one_in[83];
+              inv_add_start <= add_two_in[82];
+              inv_sbpsmc_start <= add_two_in[83];
+
+              tmv_key <= dup_two_out;
+
+              //XOR - RND9
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {dup_two_out[BLOCK_SIZE-1-the_lr:0], dup_two_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd42;
+            end
+          end
+
+          7'd42 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[84];
+              xor_start <= add_one_in[85];
+              inv_add_start <= add_two_in[84];
+              sbpsmc_start <= add_two_in[85];
+
+              //INV SPLT - RND9
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd43;
+            end
+          end
+          7'd43 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[86];
+              xor_start <= add_one_in[87];
+              inv_add_start <= add_two_in[86];
+              sbpsmc_start <= add_two_in[87];
+
+              //INV SPLT - RND9
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd44;
+            end
+          end
+          
+          7'd44 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[88];
+              sbpsmc_start <= add_one_in[89];
+              inv_add_start <= add_two_in[88];
+              inv_sbpsmc_start <= add_two_in[89];
+
+              //XOR - RND8
+              xor_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd45;
+            end
+          end
+          7'd45 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[90];
+              sbpsmc_start <= add_one_in[91];
+              inv_add_start <= add_two_in[90];
+              inv_sbpsmc_start <= add_two_in[91];
+
+              //XOR - RND8
+              xor_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd46;
+            end
+          end
+
+          7'd46 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[92];
+              xor_start <= add_one_in[93];
+              inv_add_start <= add_two_in[92];
+              sbpsmc_start <= add_two_in[93];
+
+              //RND - KEY6
+              rnd_num <= rnd_num - 5'd2;
+
+              //INV SPLT - RND8
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd47;
+            end
+          end
+          7'd47 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[94];
+              xor_start <= add_one_in[95];
+              inv_add_start <= add_two_in[94];
+              sbpsmc_start <= add_two_in[95];
+
+              //RND - KEY6
+              //rnd_num <= rnd_num - 5'd2;
+
+              //INV SPLT - RNDinv_sbpsmc         inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd48;
+            end
+          end
+          
+          ////Round 9-8 operations end here and Round 6 key operations start here
+          7'd48 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[96];
+              xor_start <= add_one_in[97];
+              inv_add_start <= add_two_in[96];
+              inv_sbpsmc_start <= add_two_in[97];
+
+              round_out <= dup_one_out;
+
+              //ADD - KEY6
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd49;
+            end
+          end
+          7'd49 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[98];
+              xor_start <= add_one_in[99];
+              inv_add_start <= add_two_in[98];
+              inv_sbpsmc_start <= add_two_in[99];
+
+              round_out <= dup_two_out;
+
+              //ADD - KEY6
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd50;
+            end
+          end
+          
+          7'd50 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[100];
+              xor_start <= add_one_in[101];
+              inv_add_start <= add_two_in[100];
+              inv_sbpsmc_start <= add_two_in[101];
+
+              tmv_key <= dup_one_out;
+
+              //ADD - KEY6
+              add_one_in <= dup_one_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd51;
+            end
+          end
+          7'd51 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[102];
+              xor_start <= add_one_in[103];
+              inv_add_start <= add_two_in[102];
+              inv_sbpsmc_start <= add_two_in[103];
+
+              tmv_key <= dup_two_out;
+
+              //ADD - KEY6
+              add_one_in <= dup_two_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd52;
+            end
+          end
+          
+          7'd52 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[104];
+              xor_start <= add_one_in[105];
+              inv_add_start <= add_two_in[104];
+              inv_sbpsmc_start <= add_two_in[105];
+
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd53;
+            end
+          end
+          7'd53 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[106];
+              xor_start <= add_one_in[107];
+              inv_add_start <= add_two_in[106];
+              inv_sbpsmc_start <= add_two_in[107];
+
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd54;
+            end
+          end
+
+          7'd54 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[108];
+              sbpsmc_start <= add_one_in[109];
+              inv_add_start <= add_two_in[108];
+              inv_sbpsmc_start <= add_two_in[109];
+
+              //XOR - KEY6
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd55;
+            end
+          end
+          7'd55 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[110];
+              sbpsmc_start <= add_one_in[111];
+              inv_add_start <= add_two_in[110];
+              inv_sbpsmc_start <= add_two_in[111];
+
+              //XOR - KEY6
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd56;
+            end
+          end
+
+          7'd56 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[112];
+              xor_start <= add_one_in[113];
+              inv_add_start <= add_two_in[112];
+              inv_sbpsmc_start <= add_two_in[113];
+
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd57;
+            end
+          end
+          7'd57 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[114];
+              xor_start <= add_one_in[115];
+              inv_add_start <= add_two_in[114];
+              inv_sbpsmc_start <= add_two_in[115];
+
+              //SPLT - KEY6
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd58;
+            end
+          end
+
+          7'd58 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[116];
+              xor_start <= add_one_in[117];
+              inv_add_start <= add_two_in[116];
+              inv_sbpsmc_start <= add_two_in[117];
+
+              //ADD - KEY6
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd59;
+            end
+          end
+          7'd59 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[118];
+              xor_start <= add_one_in[119];
+              inv_add_start <= add_two_in[118];
+              inv_sbpsmc_start <= add_two_in[119];
+
+              //ADD - KEY6
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd60;
+            end
+          end
+
+          //Round 6 key generation ends here and Round 7-6 operations start here
+          7'd60 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[120];
+              sbpsmc_start <= add_one_in[121];
+              inv_add_start <= add_two_in[120];
+              inv_sbpsmc_start <= add_two_in[121];
+
+              tmv_key <= dup_one_out;
+
+              //XOR - RND7
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {dup_one_out[BLOCK_SIZE-1-the_lr:0], dup_one_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd61;
+            end
+          end
+          7'd61 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[122];
+              sbpsmc_start <= add_one_in[123];
+              inv_add_start <= add_two_in[122];
+              inv_sbpsmc_start <= add_two_in[123];
+
+              tmv_key <= dup_two_out;
+
+              //XOR - RND7
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {dup_two_out[BLOCK_SIZE-1-the_lr:0], dup_two_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd62;
+            end
+          end
+
+          7'd62 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[124];
+              xor_start <= add_one_in[125];
+              inv_add_start <= add_two_in[124];
+              sbpsmc_start <= add_two_in[125];
+
+              //INV SPLT - RND7
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd63;
+            end
+          end
+          7'd63 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[126];
+              xor_start <= add_one_in[127];
+              inv_add_start <= add_two_in[126];
+              sbpsmc_start <= add_two_in[127];
+
+              //INV SPLT - RND7
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd64;
+            end
+          end
+          
+          7'd64 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[0];
+              sbpsmc_start <= add_one_in[1];
+              inv_add_start <= add_two_in[0];
+              inv_sbpsmc_start <= add_two_in[1];
+
+              //XOR - RND6
+              xor_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd65;
+            end
+          end
+          7'd65 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[2];
+              sbpsmc_start <= add_one_in[3];
+              inv_add_start <= add_two_in[2];
+              inv_sbpsmc_start <= add_two_in[3];
+
+              //XOR - RND6
+              xor_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd66;
+            end
+          end
+
+          7'd66 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[4];
+              xor_start <= add_one_in[5];
+              inv_add_start <= add_two_in[4];
+              sbpsmc_start <= add_two_in[5];
+
+              //RND - KEY4
+              rnd_num <= rnd_num - 5'd2;
+
+              //INV SPLT - RND6
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd67;
+            end
+          end
+          7'd67 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[6];
+              xor_start <= add_one_in[7];
+              inv_add_start <= add_two_in[6];
+              sbpsmc_start <= add_two_in[7];
+
+              //RND - KEY4
+              //rnd_num <= rnd_num - 5'd2;
+
+              //INV SPLT - RND6
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd68;
+            end
+          end
+          
+          ////Round 7-6 operations end here and Round 4 key operations start here
+          7'd68 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[8];
+              xor_start <= add_one_in[9];
+              inv_add_start <= add_two_in[8];
+              inv_sbpsmc_start <= add_two_in[9];
+
+              round_out <= dup_one_out;
+
+              //ADD - KEY4
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd69;
+            end
+          end
+          7'd69 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[10];
+              xor_start <= add_one_in[11];
+              inv_add_start <= add_two_in[10];
+              inv_sbpsmc_start <= add_two_in[11];
+
+              round_out <= dup_two_out;
+
+              //ADD - KEY4
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd70;
+            end
+          end
+          
+          7'd70 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[12];
+              xor_start <= add_one_in[13];
+              inv_add_start <= add_two_in[12];
+              inv_sbpsmc_start <= add_two_in[13];
+
+              tmv_key <= dup_one_out;
+
+              //ADD - KEY4
+              add_one_in <= dup_one_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd71;
+            end
+          end
+          7'd71 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[14];
+              xor_start <= add_one_in[15];
+              inv_add_start <= add_two_in[14];
+              inv_sbpsmc_start <= add_two_in[15];
+
+              tmv_key <= dup_two_out;
+
+              //ADD - KEY4
+              add_one_in <= dup_two_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd72;
+            end
+          end
+          
+          7'd72 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[16];
+              xor_start <= add_one_in[17];
+              inv_add_start <= add_two_in[16];
+              inv_sbpsmc_start <= add_two_in[17];
+
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd73;
+            end
+          end
+          7'd73 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[18];
+              xor_start <= add_one_in[19];
+              inv_add_start <= add_two_in[18];
+              inv_sbpsmc_start <= add_two_in[19];
+
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd74;
+            end
+          end
+
+          7'd74 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[20];
+              sbpsmc_start <= add_one_in[21];
+              inv_add_start <= add_two_in[20];
+              inv_sbpsmc_start <= add_two_in[21];
+
+              //XOR - KEY4
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd75;
+            end
+          end
+          7'd75 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[22];
+              sbpsmc_start <= add_one_in[23];
+              inv_add_start <= add_two_in[22];
+              inv_sbpsmc_start <= add_two_in[23];
+
+              //XOR - KEY4
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd76;
+            end
+          end
+
+          7'd76 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[24];
+              xor_start <= add_one_in[25];
+              inv_add_start <= add_two_in[24];
+              inv_sbpsmc_start <= add_two_in[25];
+
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd77;
+            end
+          end
+          7'd77 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[26];
+              xor_start <= add_one_in[27];
+              inv_add_start <= add_two_in[26];
+              inv_sbpsmc_start <= add_two_in[27];
+
+              //SPLT - KEY4
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd78;
+            end
+          end
+
+          7'd78 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[28];
+              xor_start <= add_one_in[29];
+              inv_add_start <= add_two_in[28];
+              inv_sbpsmc_start <= add_two_in[29];
+
+              //ADD - KEY4
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd79;
+            end
+          end
+          7'd79 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[30];
+              xor_start <= add_one_in[31];
+              inv_add_start <= add_two_in[30];
+              inv_sbpsmc_start <= add_two_in[31];
+
+              //ADD - KEY4
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd80;
+            end
+          end
+
+          //Round 4 key generation ends here and Round 5-4 operations start here
+          7'd80 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[32];
+              sbpsmc_start <= add_one_in[33];
+              inv_add_start <= add_two_in[32];
+              inv_sbpsmc_start <= add_two_in[33];
+
+              tmv_key <= dup_one_out;
+
+              //XOR - RND5
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {dup_one_out[BLOCK_SIZE-1-the_lr:0], dup_one_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd81;
+            end
+          end
+          7'd81 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[34];
+              sbpsmc_start <= add_one_in[35];
+              inv_add_start <= add_two_in[34];
+              inv_sbpsmc_start <= add_two_in[35];
+
+              tmv_key <= dup_two_out;
+
+              //XOR - RND5
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {dup_two_out[BLOCK_SIZE-1-the_lr:0], dup_two_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd82;
+            end
+          end
+
+          7'd82 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[36];
+              xor_start <= add_one_in[37];
+              inv_add_start <= add_two_in[36];
+              sbpsmc_start <= add_two_in[37];
+
+              //INV SPLT - RND5
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd83;
+            end
+          end
+          7'd83 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[38];
+              xor_start <= add_one_in[39];
+              inv_add_start <= add_two_in[38];
+              sbpsmc_start <= add_two_in[39];
+
+              //INV SPLT - RND5
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd84;
+            end
+          end
+          
+          7'd84 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[40];
+              sbpsmc_start <= add_one_in[41];
+              inv_add_start <= add_two_in[40];
+              inv_sbpsmc_start <= add_two_in[41];
+
+              //XOR - RND4
+              xor_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd85;
+            end
+          end
+          7'd85 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[42];
+              sbpsmc_start <= add_one_in[43];
+              inv_add_start <= add_two_in[42];
+              inv_sbpsmc_start <= add_two_in[43];
+
+              //XOR - RND4
+              xor_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd86;
+            end
+          end
+
+          7'd86 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[44];
+              xor_start <= add_one_in[45];
+              inv_add_start <= add_two_in[44];
+              sbpsmc_start <= add_two_in[45];
+
+              //RND - KEY2
+              rnd_num <= rnd_num - 5'd2;
+
+              //INV SPLT - RND4
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd87;
+            end
+          end
+          7'd87 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[46];
+              xor_start <= add_one_in[47];
+              inv_add_start <= add_two_in[46];
+              sbpsmc_start <= add_two_in[47];
+
+              //RND - KEY2
+              //rnd_num <= rnd_num - 5'd2;
+
+              //INV SPLT - RND4
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd88;
+            end
+          end
+          
+          ////Round 5-4 operations end here and Round 2 key operations start here
+          7'd88 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[48];
+              xor_start <= add_one_in[49];
+              inv_add_start <= add_two_in[48];
+              inv_sbpsmc_start <= add_two_in[49];
+
+              round_out <= dup_one_out;
+
+              //ADD - KEY2
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd89;
+            end
+          end
+          7'd89 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[50];
+              xor_start <= add_one_in[51];
+              inv_add_start <= add_two_in[50];
+              inv_sbpsmc_start <= add_two_in[51];
+
+              round_out <= dup_two_out;
+
+              //ADD - KEY2
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd90;
+            end
+          end
+          
+          7'd90 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[52];
+              xor_start <= add_one_in[53];
+              inv_add_start <= add_two_in[52];
+              inv_sbpsmc_start <= add_two_in[53];
+
+              tmv_key <= dup_one_out;
+
+              //ADD - KEY2
+              add_one_in <= dup_one_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd91;
+            end
+          end
+          7'd91 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[54];
+              xor_start <= add_one_in[55];
+              inv_add_start <= add_two_in[54];
+              inv_sbpsmc_start <= add_two_in[55];
+
+              tmv_key <= dup_two_out;
+
+              //ADD - KEY2
+              add_one_in <= dup_two_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd92;
+            end
+          end
+          
+          7'd92 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[56];
+              xor_start <= add_one_in[57];
+              inv_add_start <= add_two_in[56];
+              inv_sbpsmc_start <= add_two_in[57];
+
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd93;
+            end
+          end
+          7'd93 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[58];
+              xor_start <= add_one_in[59];
+              inv_add_start <= add_two_in[58];
+              inv_sbpsmc_start <= add_two_in[59];
+
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd94;
+            end
+          end
+
+          7'd94 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[60];
+              sbpsmc_start <= add_one_in[61];
+              inv_add_start <= add_two_in[60];
+              inv_sbpsmc_start <= add_two_in[61];
+
+              //XOR - KEY2
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd95;
+            end
+          end
+          7'd95 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[62];
+              sbpsmc_start <= add_one_in[63];
+              inv_add_start <= add_two_in[62];
+              inv_sbpsmc_start <= add_two_in[63];
+
+              //XOR - KEY2
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd96;
+            end
+          end
+
+          7'd96 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[64];
+              xor_start <= add_one_in[65];
+              inv_add_start <= add_two_in[64];
+              inv_sbpsmc_start <= add_two_in[65];
+
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd97;
+            end
+          end
+          7'd97 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[66];
+              xor_start <= add_one_in[67];
+              inv_add_start <= add_two_in[66];
+              inv_sbpsmc_start <= add_two_in[67];
+
+              //SPLT - KEY2
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd98;
+            end
+          end
+
+          7'd98 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[68];
+              xor_start <= add_one_in[69];
+              inv_add_start <= add_two_in[68];
+              inv_sbpsmc_start <= add_two_in[69];
+
+              //ADD - KEY2
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd99;
+            end
+          end
+          7'd99 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[70];
+              xor_start <= add_one_in[71];
+              inv_add_start <= add_two_in[70];
+              inv_sbpsmc_start <= add_two_in[71];
+
+              //ADD - KEY2
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd100;
+            end
+          end
+
+          //Round 2 key generation ends here and Round 3-2 operations start here
+          7'd100 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[72];
+              sbpsmc_start <= add_one_in[73];
+              inv_add_start <= add_two_in[72];
+              inv_sbpsmc_start <= add_two_in[73];
+
+              tmv_key <= dup_one_out;
+
+              //XOR - RND3
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {dup_one_out[BLOCK_SIZE-1-the_lr:0], dup_one_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd101;
+            end
+          end
+          7'd101 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[74];
+              sbpsmc_start <= add_one_in[75];
+              inv_add_start <= add_two_in[74];
+              inv_sbpsmc_start <= add_two_in[75];
+
+              tmv_key <= dup_two_out;
+
+              //XOR - RND3
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {dup_two_out[BLOCK_SIZE-1-the_lr:0], dup_two_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd102;
+            end
+          end
+
+          7'd102 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[76];
+              xor_start <= add_one_in[77];
+              inv_add_start <= add_two_in[76];
+              sbpsmc_start <= add_two_in[77];
+
+              //INV SPLT - RND3
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd103;
+            end
+          end
+          7'd103 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[78];
+              xor_start <= add_one_in[79];
+              inv_add_start <= add_two_in[78];
+              sbpsmc_start <= add_two_in[79];
+
+              //INV SPLT - RND3
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd104;
+            end
+          end
+          
+          7'd104 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[80];
+              sbpsmc_start <= add_one_in[81];
+              inv_add_start <= add_two_in[80];
+              inv_sbpsmc_start <= add_two_in[81];
+
+              //XOR - RND2
+              xor_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd105;
+            end
+          end
+          7'd105 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[82];
+              sbpsmc_start <= add_one_in[83];
+              inv_add_start <= add_two_in[82];
+              inv_sbpsmc_start <= add_two_in[83];
+
+              //XOR - RND2
+              xor_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd106;
+            end
+          end
+
+          7'd106 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[84];
+              xor_start <= add_one_in[85];
+              inv_add_start <= add_two_in[84];
+              sbpsmc_start <= add_two_in[85];
+
+              //RND - KEY0
+              rnd_num <= rnd_num - 5'd2;
+
+              //INV SPLT - RND2
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd107;
+            end
+          end
+          7'd107 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[86];
+              xor_start <= add_one_in[87];
+              inv_add_start <= add_two_in[86];
+              sbpsmc_start <= add_two_in[87];
+
+              //RND - KEY0
+              //rnd_num <= rnd_num - 5'd2;
+
+              //INV SPLT - RND2
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd108;
+            end
+          end
+          
+          ////Round 3-2 operations end here and Round 0 key operations start here
+          7'd108 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[88];
+              xor_start <= add_one_in[89];
+              inv_add_start <= add_two_in[88];
+              inv_sbpsmc_start <= add_two_in[89];
+
+              round_out <= dup_one_out;
+
+              //ADD - KEY0
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              if (rnd_cnt == 5'd10) begin
+                curr_state <= 7'd109;
+              end
+              else if (rnd_cnt == 5'd14) begin
+                if (rnd_num == 5'd0) begin
+                  curr_state <= 7'd109;
+                end
+                else begin
+                  curr_state <= 7'd69;
+                end
+              end
+              else begin
+                if (rnd_num == 5'd0) begin
+                  curr_state <= 7'd109;
+                end
+                else begin
+                  curr_state <= 7'd29;
+                end
+              end
+            end
+          end
+          7'd109 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[90];
+              xor_start <= add_one_in[91];
+              inv_add_start <= add_two_in[90];
+              inv_sbpsmc_start <= add_two_in[91];
+
+              round_out <= dup_two_out;
+
+              //ADD - KEY0
+              add_start <= 1'b1;
+              add_one_in <= int_key;
+              add_two_in <= shft_tmv;
+
+              curr_state <= 7'd110;
+            end
+          end
+          
+          7'd110 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[92];
+              xor_start <= add_one_in[93];
+              inv_add_start <= add_two_in[92];
+              inv_sbpsmc_start <= add_two_in[93];
+
+              tmv_key <= dup_one_out;
+
+              //ADD - KEY0
+              add_one_in <= dup_one_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd111;
+            end
+          end
+          7'd111 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[94];
+              xor_start <= add_one_in[95];
+              inv_add_start <= add_two_in[94];
+              inv_sbpsmc_start <= add_two_in[95];
+
+              tmv_key <= dup_two_out;
+
+              //ADD - KEY0
+              add_one_in <= dup_two_out;
+              add_two_in <= trans_key_in;
+
+              curr_state <= 7'd112;
+            end
+          end
+          
+          7'd112 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[96];
+              xor_start <= add_one_in[97];
+              inv_add_start <= add_two_in[96];
+              inv_sbpsmc_start <= add_two_in[97];
+
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd113;
+            end
+          end
+          7'd113 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[98];
+              xor_start <= add_one_in[99];
+              inv_add_start <= add_two_in[98];
+              inv_sbpsmc_start <= add_two_in[99];
+
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd114;
+            end
+          end
+
+          7'd114 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[100];
+              sbpsmc_start <= add_one_in[101];
+              inv_add_start <= add_two_in[100];
+              inv_sbpsmc_start <= add_two_in[101];
+
+              //XOR - KEY0
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd115;
+            end
+          end
+          7'd115 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[102];
+              sbpsmc_start <= add_one_in[103];
+              inv_add_start <= add_two_in[102];
+              inv_sbpsmc_start <= add_two_in[103];
+
+              //XOR - KEY0
+              xor_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd116;
+            end
+          end
+
+          7'd116 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[104];
+              xor_start <= add_one_in[105];
+              inv_add_start <= add_two_in[104];
+              inv_sbpsmc_start <= add_two_in[105];
+
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd117;
+            end
+          end
+          7'd117 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[106];
+              xor_start <= add_one_in[107];
+              inv_add_start <= add_two_in[106];
+              inv_sbpsmc_start <= add_two_in[107];
+
+              //SPLT - KEY0
+              sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd118;
+            end
+          end
+
+          7'd118 : begin
+            if (sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= sbpsmc_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[108];
+              xor_start <= add_one_in[109];
+              inv_add_start <= add_two_in[108];
+              inv_sbpsmc_start <= add_two_in[109];
+
+              //ADD - KEY0
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_one_out;
+
+              curr_state <= 7'd119;
+            end
+          end
+          7'd119 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_one_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[110];
+              xor_start <= add_one_in[111];
+              inv_add_start <= add_two_in[110];
+              inv_sbpsmc_start <= add_two_in[111];
+
+              //ADD - KEY0
+              add_start <= 1'b1;
+              add_one_in <= tmv_key;
+              add_two_in <= dup_two_out;
+
+              curr_state <= 7'd120;
+            end
+          end
+          
+          //Round 0 key generation ends here and Round 1-0 operations start here
+          7'd120 : begin
+            if (m2p64add_rdy == 1'b1) begin
+              dup_two_out <= m2p64add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[112];
+              sbpsmc_start <= add_one_in[113];
+              inv_add_start <= add_two_in[112];
+              inv_sbpsmc_start <= add_two_in[113];
+
+              tmv_key <= dup_one_out;
+
+              //XOR - RND1
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {dup_one_out[BLOCK_SIZE-1-the_lr:0], dup_one_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd121;
+            end
+          end
+          7'd121 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_one_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[114];
+              sbpsmc_start <= add_one_in[115];
+              inv_add_start <= add_two_in[114];
+              inv_sbpsmc_start <= add_two_in[115];
+
+              tmv_key <= dup_two_out;
+
+              //XOR - RND1
+              xor_start <= 1'b1;
+              add_one_in <= round_out;
+              add_two_in <= {dup_two_out[BLOCK_SIZE-1-the_lr:0], dup_two_out[BLOCK_SIZE-1:BLOCK_SIZE-the_lr]};
+
+              curr_state <= 7'd122;
+            end
+          end
+          
+          7'd122 : begin
+            if (m2add_rdy == 1'b1) begin
+              dup_two_out <= m2add_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[116];
+              xor_start <= add_one_in[117];
+              inv_add_start <= add_two_in[116];
+              sbpsmc_start <= add_two_in[117];
+
+              //INV SPLT - RND1
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_one_out;
+
+              curr_state <= 7'd123;
+            end
+          end
+          7'd123 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_one_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              add_start <= add_one_in[118];
+              xor_start <= add_one_in[119];
+              inv_add_start <= add_two_in[118];
+              sbpsmc_start <= add_two_in[119];
+
+              //INV SPLT - RND1
+              inv_sbpsmc_start <= 1'b1;
+              add_one_in <= dup_two_out;
+
+              curr_state <= 7'd124;
+            end
+          end
+          
+          7'd124 : begin
+            if (inv_sbpsmc_rdy == 1'b1) begin
+              dup_two_out <= inv_sbpsmc_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[120];
+              xor_start <= add_one_in[121];
+              add_start <= add_two_in[120];
+              inv_sbpsmc_start <= add_two_in[121];
+
+              //SUB - RND0
+              inv_add_start <= 1'b1;
+              add_one_in <= dup_one_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd125;
+            end
+          end
+          7'd125 : begin
+            if (m2p64sub_rdy == 1'b1) begin
+              dup_one_out <= m2p64sub_out;
+
+              //SOME OPERATIONS
+              sbpsmc_start <= add_one_in[122];
+              xor_start <= add_one_in[123];
+              add_start <= add_two_in[122];
+              inv_sbpsmc_start <= add_two_in[123];
+
+              //SUB - RND0
+              inv_add_start <= 1'b1;
+              add_one_in <= dup_two_out;
+              add_two_in <= tmv_key;
+
+              curr_state <= 7'd126;
+            end
+          end
+           
+          7'd126 : begin
+            if (m2p64sub_rdy == 1'b1) begin
+              dup_two_out <= m2p64sub_out;
+
+              round_out <= dup_one_out;
+              reg_block_rdy <= 1'b1;
+
+              //SUB - RND0
+              add_start <= 1'b0;
+              xor_start <= 1'b0;
+              sbpsmc_start <= 1'b0;
+              inv_add_start <= 1'b0;
+              inv_sbpsmc_start <= 1'b0;
+
+              curr_state <= 7'd0;
+            end
+          end
+          default : begin
+            rnd_num <= 5'd0;
+            add_start <= 1'b0;
+            xor_start <= 1'b0;
+            curr_state <= 7'd0;
+            sbpsmc_start <= 1'b0;
+            reg_block_rdy <= 1'b0;
+            inv_add_start <= 1'b0;
+            inv_sbpsmc_start <= 1'b0;
+            tmv_key <= {BLOCK_SIZE{1'b0}};
+            int_key <= {BLOCK_SIZE{1'b0}};
+            round_out <= {BLOCK_SIZE{1'b0}};
+            add_one_in <= {BLOCK_SIZE{1'b0}};
+            add_two_in <= {BLOCK_SIZE{1'b0}};
+            dup_one_out <= {BLOCK_SIZE{1'b0}};
+            dup_two_out <= {BLOCK_SIZE{1'b0}};
+          end
+        endcase
+      end
+    end
+  end
+end
+
+//Pseudo-Random Number Generator
+`ifdef XORSHIFT
+  //XORSHIFT
+  kalyna_xorshift64 xs_ins (.clk(clk), .rst(rst), .start(reg_encdec_start), .seed(block_in[63:0]), .xs_out(prng_out));
+`elsif LFSR
+  //LFSR
+  kalyna_lfsr64 lfsr_ins (.clk(clk), .rst(rst), .start(reg_encdec_start), .seed(block_in[63:0]), .lfsr_out(prng_out));
+`endif
+
+//First-Order Masking
+//Additions
+kalyna_mod2_add_serial64b_fom #(.BLOCK_SIZE(BLOCK_SIZE)) m2a_ins (.clk(clk), .rst(rst), .m2add_start(xor_start), .m2add_in_one(add_one_in), .m2add_in_two(add_two_in), .lfsr_in(prng_out), .m2add_out(m2add_out), .m2add_rdy(m2add_rdy));
+kalyna_mod2p64_add_serial64b_fom #(.BLOCK_SIZE(BLOCK_SIZE)) m2p64a_ins (.clk(clk), .rst(rst), .m2p64add_start(add_start), .m2p64add_in_one(add_one_in), .m2p64add_in_two(add_two_in), .lfsr_in(prng_out), .m2p64add_out(m2p64add_out), .m2p64add_rdy(m2p64add_rdy));
+//Substitution Permutation Mix-Column
+kalyna_sbpsmc_serial64b_fom #(.BLOCK_SIZE(BLOCK_SIZE)) sbpsmc64b_ins (.clk(clk), .rst(rst), .sbpsmc_start(sbpsmc_start), .sbpsmc_in(add_one_in), .lfsr_in(prng_out), .sbpsmc_out(sbpsmc_out), .sbpsmc_rdy(sbpsmc_rdy));
+//Inverse Addition
+kalyna_inv_mod2p64_add_serial64b_fom #(.BLOCK_SIZE(BLOCK_SIZE)) inv_m2p64a_ins (.clk(clk), .rst(rst), .m2p64add_start(inv_add_start), .m2p64add_in_one(add_one_in), .m2p64add_in_two(add_two_in), .lfsr_in(prng_out), .m2p64add_out(m2p64sub_out), .m2p64add_rdy(m2p64sub_rdy));
+//Inverse Substitution Permutation Mix-Column
+kalyna_inv_sbpsmc_serial64b_fom #(.BLOCK_SIZE(BLOCK_SIZE)) inv_sbpsmc64b_ins (.clk(clk), .rst(rst), .sbpsmc_start(inv_sbpsmc_start), .sbpsmc_in(add_one_in), .lfsr_in(prng_out), .sbpsmc_out(inv_sbpsmc_out), .sbpsmc_rdy(inv_sbpsmc_rdy));
+
+//Fault Injection
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    reg_flt_inj <= 1'b0;
+  end
+  else begin
+    if (curr_state[0] == 1'b1) begin
+      if (dup_one_out != dup_two_out) begin
+        reg_flt_inj <= 1'b1;
+      end
+    end
+  end
+end
+
+//Previous current state
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    pre_curr_state <= 7'd0;
+  end
+  else begin
+    if (reg_encdec_start == 1'b0) begin
+      pre_curr_state <= 7'd0;
+    end
+    else begin
+      if (m2add_rdy == 1'b1 | m2p64add_rdy == 1'b1 | sbpsmc_rdy == 1'b1 | m2p64sub_rdy == 1'b1 | inv_sbpsmc_rdy == 1'b1) begin
+        pre_curr_state <= curr_state;
+      end
+    end
+  end
+end
+
+//Fault in the state
+assign flt_state = (((mode == 1'b1 & pre_curr_state != 7'd108) | (mode == 1'b0 & pre_curr_state != 7'd110)) & pre_curr_state != 7'd126 & curr_state - pre_curr_state > 7'd1) ? 1'b1 : 1'b0;
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    reg_flt_state <= 1'b0;
+  end
+  else begin
+    if (flt_state == 1'b1) begin
+      reg_flt_state <= 1'b1;
+    end
+  end
+end
+
+//Block Outputs
+always @ (posedge clk or negedge rst) begin
+  if (rst == 1'b0) begin
+    block_rdy <= 1'b0;
+    block_out <= {BLOCK_SIZE{1'b0}};
+  end
+  else begin
+    if (reg_encdec_start == 1'b0) begin
+      block_rdy <= 1'b0;
+      block_out <= {BLOCK_SIZE{1'b0}};
+    end
+    else begin
+      if (reg_block_rdy == 1'b1) begin
+        block_rdy <= 1'b1;
+        block_out <= round_out;
+      end
+    end
+  end
+end
+
+endmodule
+

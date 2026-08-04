@@ -1,0 +1,7 @@
+This directrory includes the RTL codes for the implementation of the KUPYNA hash function in the kupyna_misc.sv file considering its all possible realizations under the code length. 
+For the tapeout, we consider the following modules, where the reset signal is assumed to be active low and asynchronous.
+
+Architecture  Module                         Description
+------------  -----------------------------  ------------------------------------------------------------------------
+Serial        kupyna_hash_serial_reuse       Serial with a single round in one clk cycle reusing the XOR transformation                    
+Serial        kupyna_hash_serial64b_reuse    Serial with a single column in state matrix in one clock cycle reusing the XOR transformation 

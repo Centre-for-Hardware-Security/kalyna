@@ -1,0 +1,30 @@
+This directory includes the Perl script that can generate all the necessary files for synthesis and simulation. Its usage is given as follows:
+
+Usage:       perl kupyna.pl -f=<FileName> -m=<String> -mod=block/hash -l=<Integer> -s=0/1 -o=<FileName>                                                           
+                            -tb -not=<Integer> -dut=<String> -rst=low/high -par -gl -rt -sdc                                                                      
+                            -gv=19/23 -v -h                                                                                                                       
+f:           File including the message in hexadecimal format                                                                                                     
+m:           Message in hexadecimal format                                                                                                                        
+mod:         Module by default it is hash function                                                                                                                
+l:           Code length by default it is 256                                                                                                                     
+s:           S-Box implementation by default it is generic                                                                                                        
+               0: Generic                                                                                                                                         
+               1: Optimized                                                                                                                                       
+o:           Output file                                                                                                                                          
+tb:          Generates the test-bench by default it does not                                                                                                      
+not:         Number of test vectors by default it is 100                                                                                                          
+dut:         Name of the design under test by default it is kupyna_hash_serial                                                                                    
+rst:         Reset signal by default it is active high                                                                                                            
+par:         Considers the parallel design of the KUPYNA block by default it does not                                                                             
+gl:          Considers the simulation at gate-level by default it does not                                                                                        
+rt:          Considers retiming during logic synthesis by default it does not                                                                                     
+sdc:         Considers the SDC data while obtaining the gate-level synthesis results by default it does not                                                       
+gv:          Cadence Genus version by default it is the 2023 EDA version                                                                                          
+v:           Prints comments during execution by default it does not                                                                                              
+h:           Prints this screen                                                                                                                                   
+Description: This code implements the hash function KUPYNA in software                                                                                            
+             The block module implements the single KUPYNA block where its size is 512/1024                                                                       
+Examples:    perl kupyna.pl -f=msg512.txt -v                               *Hash from the message file                                                            
+             perl kupyna.pl -m=101112131415161718191A1B1C1D1E1F -v         *Hash from the command prompt                                                          
+             perl kupyna.pl -tb -dut=kupyna_hash_serial_oboc_reuse -gl     *Generation of all the necessary files and scripts for synthesis and simulation in hash
+

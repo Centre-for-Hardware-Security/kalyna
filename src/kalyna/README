@@ -1,0 +1,1 @@
+This directory contains the RTL codes for the hardware implementation of the KALYNA block cipher. The PARAMETRIC directory includes its all possible implementations under the block size and key length realizing encryption, decryption, and both encryption and decryption functions.

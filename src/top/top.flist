@@ -1,0 +1,9 @@
+ua_crypto_pkg.sv
+chip_top.v
+dig_top.v
+ana_top_dummy.v
+io_ring_sim.v
+ua_serial_regs.sv
+fi_serial_regs.sv
+crypto_output_registers.sv
+top_ctrl.sv

@@ -1,0 +1,10 @@
+aes_top.sv
+kalyna_hs_top.sv
+kalyna_hs_enc_top.sv
+kalyna_kupyna_top.sv
+kalyna_lp_top.sv
+kalyna_secure1_top.sv
+kalyna_secure2_top.sv
+kupyna_hs_top.sv
+kupyna_lp_top.sv
+sha256_top.sv

@@ -1,0 +1,32 @@
+This directory includes parametric realizations of the Kalyna block cipher inside the kalyna_misc.sv file. There exist alternative realizations for the encryption, decryption, and encryption/decryption functions. We consider the parallel architecture and the serial architectures 
+where two rounds are implemented in one cycle, one round is implemented in one clock cycle, one operation is implemented in one clock cycle, and one column of the internal state matrix is processed in one clock cycle. The secure implementations under the serial architecture, 
+where one column of the internal state matrix is processed in one clock cycle, are also given. The modules, including these implementations, are highlighted below:
+
+Architecture    Module Name                                       Mode                    Description
+------------    --------------------------------------------      ---------------------   --------------------------------------------------------------------------------------------------------
+Parallel        kalyna_enc_block_parallel                         Encryption              Full combinational logic                                                                                    
+Parallel        kalyna_dec_block_parallel                         Decryption              Full combinational logic                                                                                    
+Serial          kalyna_enc_block_serial_2rnd                      Encryption              Serial with two rounds in one clock cycle                                                                   
+Serial          kalyna_dec_block_serial_2rnd                      Decryption              Serial with two rounds in one clock cycle                                                                   
+Serial          kalyna_enc_block_serial                           Encryption              Serial with one round in one clock cycle                                                                    
+Serial          kalyna_dec_block_serial                           Decryption              Serial with one round in one clock cycle                                                                    
+Serial          kalyna_enc_block_serial_oboc                      Encryption              Serial with one operation in one clock cycle                                                                
+Serial          kalyna_dec_block_serial_oboc                      Decryption              Serial with one operation in one clock cycle                                                                
+Serial          kalyna_enc_block_serial64b_oboc                   Encryption              Serial with one 64-bit operation in one clock cycle                                                         
+Serial          kalyna_enc_block_serial64b_oboc_redcyc            Encryption              Serial with one 64-bit operation in one clock cycle where the total number of cycles is reduced             
+Serial          kalyna_enc_block_serial64b_oboc_hid               Encryption              Serial with one 64-bit operation in one clock cycle with hiding                                             
+Serial          kalyna_enc_block_serial64b_oboc_fomhid            Encryption              Serial with one 64-bit operation in one clock cycle with first-order masking and hiding                     
+Serial          kalyna_enc_block_serial64b_oboc_fomhidhybdup      Encryption              Serial with one 64-bit operation in one clock cycle with first-order masking hiding and hybrid duplication  
+Serial          kalyna_enc_block_serial64b_oboc_fomhidtemdup      Encryption              Serial with one 64-bit operation in one clock cycle with first-order masking hiding and temporal duplication
+Serial          kalyna_dec_block_serial64b_oboc                   Decryption              Serial with one 64-bit operation in one clock cycle                                                         
+Serial          kalyna_dec_block_serial64b_oboc_hid               Decryption              Serial with one 64-bit operation in one clock cycle with hiding                                             
+Serial          kalyna_dec_block_serial64b_oboc_fomhid            Decryption              Serial with one 64-bit operation in one clock cycle with first-order masking and hiding                     
+Serial          kalyna_dec_block_serial64b_oboc_fomhidhybdup      Decryption              Serial with one 64-bit operation in one clock cycle with first-order masking hiding and hybrid duplication  
+Serial          kalyna_dec_block_serial64b_oboc_fomhidtemdup      Decryption              Serial with one 64-bit operation in one clock cycle with first-order masking hiding and temporal duplication
+Serial          kalyna_encdec_block_serial_2rnd                   Encryption/Decryption   Serial with two rounds in one clock cycle                                                                   
+Serial          kalyna_encdec_block_serial_oboc                   Encryption/Decryption   Serial with one operation in one clock cycle                                                                
+Serial          kalyna_encdec_block_serial64b_oboc                Encryption/Decryption   Serial with one 64-bit operation in one clock cycle                                                         
+Serial          kalyna_encdec_block_serial64b_oboc_hid            Encryption/Decryption   Serial with one 64-bit operation in one clock cycle with hiding                                             
+Serial          kalyna_encdec_block_serial64b_oboc_fomhid         Encryption/Decryption   Serial with one 64-bit operation in one clock cycle with first-order masking and hiding                     
+Serial          kalyna_encdec_block_serial64b_oboc_fomhidhybdup   Encryption/Decryption   Serial with one 64-bit operation in one clock cycle with first-order masking hiding and hybrid duplication  
+Serial          kalyna_encdec_block_serial64b_oboc_fomhidtemdup   Encryption/Decryption   Serial with one 64-bit operation in one clock cycle with first-order masking hiding and temporal duplication

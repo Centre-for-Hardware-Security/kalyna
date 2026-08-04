@@ -1,0 +1,11 @@
+This directory includes parametric realizations of the Kalyna block cipher inside the kalyna_misc.sv file. There exist alternative realizations for the encryption, decryption, and encryption/decryption functions. 
+For the tapeout, we consider the following blocks, where the reset signal is assumed to be active low and asynchronous.
+
+
+Architecture    Module Name                                       Mode                    Description
+------------    --------------------------------------------      ---------------------   --------------------------------------------------------------------------------------------------------
+Serial          kalyna_enc_block_serial_oboc                      Encryption              Serial with one operation in one clock cycle                                                               
+Serial          kalyna_encdec_block_serial_oboc                   Encryption/Decryption   Serial with one operation in one clock cycle                                                                
+Serial          kalyna_encdec_block_serial64b_oboc                Encryption/Decryption   Serial with one 64-bit operation in one clock cycle                                                         
+Serial          kalyna_encdec_block_serial64b_oboc_fomhid         Encryption/Decryption   Serial with one 64-bit operation in one clock cycle with first-order masking and hiding                     
+Serial          kalyna_encdec_block_serial64b_oboc_fomhidtemdup   Encryption/Decryption   Serial with one 64-bit operation in one clock cycle with first-order masking hiding and temporal duplication

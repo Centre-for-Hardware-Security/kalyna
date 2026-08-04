@@ -1,0 +1,14 @@
+This directrory includes the RTL codes for the implementation of the KUPYNA hash function in the kupyna_misc.sv file considering its all possible realizations under the code length. We consider different architectures as given below:
+
+Architecture  Module                         Description
+------------  -----------------------------  ------------------------------------------------------------------------
+Parallel      kupyna_hash_parallel           Full combinational logic                                                                       
+Serial        kupyna_hash_serial_2clk        Serial with all rounds in two clk cycles                                                      
+Serial        kupyna_hash_serial_2rnd        Serial with two rounds in one clk cycle                                                       
+Serial        kupyna_hash_serial             Serial with a single round in one clk cycle                                                   
+Serial        kupyna_hash_serial64b          Serial with a single column in state matrix in one clock cycle                                
+Serial        kupyna_hash_serial_2clk_reuse  Serial with all rounds in two clk cycles reusing the XOR transformation                       
+Serial        kupyna_hash_serial_2rnd_reuse  Serial with two rounds in one clk cycle reusing the XOR transformation                        
+Serial        kupyna_hash_serial_reuse       Serial with a single round in one clk cycle reusing the XOR transformation                    
+Serial        kupyna_hash_serial64b_reuse    Serial with a single column in state matrix in one clock cycle reusing the XOR transformation 
+Serial        kupyna_hash_serial_oboc_reuse  Serial with 64-bit operations in one clock cycle reusing all operations                       

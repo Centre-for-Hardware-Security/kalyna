@@ -1,0 +1,11 @@
+This directory includes parametric realizations of the unified Kalyna block cipher and Kupyna hash function inside the kalyna_kupyna.v file. The Kalyna implementation realizes both encryption and decryption functions under all possible block sizes and key lengths.
+The Kupyna implementation realizes the hash function under all possible code lengths. They are based on the serial architecture, which executes one 64-bit operation at a time.
+
+Architecture    Module Name                       Mode                              Description
+------------    ----------------------------      ---------------------             --------------------------------------------------------------------------------------------------------
+Serial          kalyna_kupyna_serial64b_oboc      Encryption/Decryption and Hash    Serial with one 64-bit operation in one clock cycle                                                       
+
+Notes
+------
+The OPT parameter is used to choose the optimized linear transformation for the number of XOR gates and the optimized S-boxes  
+The KSA parameter is used to realize the 64-bit adder using the Kogge-Stone adder                                             

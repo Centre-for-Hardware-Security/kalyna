@@ -1,0 +1,3 @@
+ua_crypto_pkg.sv
+ana_top_dummy.v
+../../build/top/deliverables/innovus/chip_top_final_sim.v
