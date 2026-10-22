@@ -1,0 +1,3 @@
+${UA_CRYPTO_ROOT}/src/top/ua_crypto_pkg.sv
+${UA_CRYPTO_ROOT}/src/crypto_wrappers/kalyna_secure2_top.sv
+${UA_CRYPTO_ROOT}/src/kalyna/TAPEOUT/kalyna_misc.sv

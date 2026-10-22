@@ -1,0 +1,5 @@
+${UA_CRYPTO_ROOT}/src/top/ua_crypto_pkg.sv
+${UA_CRYPTO_ROOT}/src/crypto_wrappers/sha256_top.sv
+${UA_CRYPTO_ROOT}/src/sha256/sha256_core.v
+${UA_CRYPTO_ROOT}/src/sha256/sha256_k_constants.v
+${UA_CRYPTO_ROOT}/src/sha256/sha256_w_mem.v

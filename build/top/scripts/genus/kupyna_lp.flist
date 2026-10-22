@@ -1,0 +1,3 @@
+${UA_CRYPTO_ROOT}/src/top/ua_crypto_pkg.sv
+${UA_CRYPTO_ROOT}/src/crypto_wrappers/kupyna_lp_top.sv
+${UA_CRYPTO_ROOT}/src/kupyna/TAPEOUT/kupyna_misc.sv

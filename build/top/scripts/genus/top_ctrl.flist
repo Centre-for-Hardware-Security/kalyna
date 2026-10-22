@@ -1,0 +1,11 @@
+${UA_CRYPTO_ROOT}/src/top/ua_crypto_pkg.sv
+${UA_CRYPTO_ROOT}/src/top/top_ctrl.sv
+${UA_CRYPTO_ROOT}/src/top/ua_serial_regs.sv
+${UA_CRYPTO_ROOT}/src/top/fi_serial_regs.sv
+${UA_CRYPTO_ROOT}/src/top/crypto_output_registers.sv
+${UA_CRYPTO_ROOT}/src/common/clk_mux_glitch_free.sv
+${UA_CRYPTO_ROOT}/src/common/rstgen.sv
+${UA_CRYPTO_ROOT}/src/common/rstgen_bypass.sv
+${UA_CRYPTO_ROOT}/src/common/sync.sv
+${UA_CRYPTO_ROOT}/src/common/sync_wedge.sv
+${UA_CRYPTO_ROOT}/src/common/tc_clk_tsmc65lp.sv

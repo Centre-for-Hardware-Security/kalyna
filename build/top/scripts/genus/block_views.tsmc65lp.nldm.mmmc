@@ -1,0 +1,67 @@
+# Version:1.0 MMMC View Definition File
+# Do Not Remove Above Line
+
+set PDK_ROOT_DIR __REDACTED__
+
+create_library_set -name wc -timing "__REDACTED__"
+
+create_timing_condition -name wc_cond -library_sets wc
+
+if {$TOP_MODULE == "top_ctrl"} {
+	create_constraint_mode -name sdc_fast -sdc_files ${SCRIPTS_DIR}/genus/top_ctrl_constraints_fast.sdc
+	create_constraint_mode -name sdc_slow -sdc_files ${SCRIPTS_DIR}/genus/top_ctrl_constraints_slow.sdc
+	set all_modes "sdc_fast sdc_slow"
+} else {
+	create_constraint_mode -name sdc -sdc_files ${SCRIPTS_DIR}/genus/block_constraints.sdc
+	set all_modes "sdc"
+}
+
+# Creating RC corners
+set all_rc_corners "cworst rcworst"
+set all_temps      "125"
+foreach rc_corner $all_rc_corners {
+    foreach temp $all_temps {
+	create_rc_corner -name ${rc_corner}_${temp} \
+	    -qrc_tech __REDACTED__ \
+	    -temperature $temp
+    }
+}
+
+# Creating Delay corners
+set all_lib "wc"
+foreach lib_set $all_lib {
+    foreach rc_corner $all_rc_corners {
+	foreach temp $all_temps {
+	    create_delay_corner \
+		-name ${lib_set}_${rc_corner}_${temp} \
+		-timing_condition ${lib_set}_cond \
+		-rc_corner ${rc_corner}_${temp}
+	}
+    }
+}
+
+# Creating analysis views
+foreach lib_set $all_lib {
+    foreach rc_corner $all_rc_corners {
+		foreach temp $all_temps {
+			foreach mode $all_modes {
+				create_analysis_view \
+				-name ${lib_set}_${rc_corner}_${temp}_${mode} \
+				-delay_corner ${lib_set}_${rc_corner}_${temp} \
+				-constraint_mode $mode
+			}
+		}
+    }
+}
+
+if {$TOP_MODULE == "top_ctrl"} {
+	set setup_analysis_views "wc_rcworst_125_sdc_fast wc_cworst_125_sdc_fast wc_rcworst_125_sdc_slow wc_cworst_125_sdc_slow"
+	set hold_analysis_views "wc_cworst_125_sdc_fast wc_cworst_125_sdc_slow"
+	set power_analysis_view "wc_rcworst_125_sdc_fast"
+} else {
+	set setup_analysis_views "wc_rcworst_125_sdc wc_cworst_125_sdc"
+	set hold_analysis_views "wc_cworst_125_sdc"
+	set power_analysis_view "wc_rcworst_125_sdc"
+}
+
+set_analysis_view -setup $setup_analysis_views -hold $hold_analysis_views -leakage $power_analysis_view -dynamic $power_analysis_view
